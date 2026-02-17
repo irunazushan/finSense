@@ -27,6 +27,7 @@ CREATE TABLE core.transactions (
     merchant_name VARCHAR(255),
     mcc_code VARCHAR(10),
     transaction_date TIMESTAMP NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'NEW',
     category VARCHAR(100),
     classifier_source VARCHAR(10), -- 'RULE', 'ML', 'LLM'
     classifier_confidence REAL,
@@ -36,6 +37,7 @@ CREATE TABLE core.transactions (
 CREATE INDEX idx_transactions_user_account ON core.transactions(user_id, account_id, transaction_date);
 CREATE INDEX idx_transactions_classifier ON core.transactions(classifier_source, classified_at);
 CREATE INDEX idx_transactions_category ON core.transactions(category);
+CREATE INDEX idx_transactions_status ON core.transactions(status);
 
 CREATE TABLE recommendations.recommendations (
     id UUID PRIMARY KEY,
