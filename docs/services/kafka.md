@@ -24,7 +24,7 @@
 **Пример сообщения:**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "transactionId": "550e8400-e29b-41d4-a716-446655440000",
   "userId": "123e4567-e89b-12d3-a456-426614174000",
   "amount": 1250.75,
   "description": "Кофе Starbucks",
@@ -42,7 +42,7 @@
 
 **Продюсер:** Core Service  
 **Консьюмеры:** Reasoning Agent  
-**Ключ:** `correlationId` (UUID) – для связывания запроса и ответа.  
+**Ключ:** `transactionId` (UUID) – для связывания запроса и ответа.  
 **Партиции:** 2  
 **Replication factor:** 1  
 **Retention:** 3 дня  
@@ -51,18 +51,7 @@
 ```json
 {
   "transactionId": "550e8400-e29b-41d4-a716-446655440000",
-  "userId": "123e4567-e89b-12d3-a456-426614174000",
-  "transactionData": {
-    "amount": 1250.75,
-    "description": "Кофе Starbucks",
-    "merchantName": "Starbucks",
-    "mccCode": "5812",
-    "timestamp": "2026-02-17T12:34:56Z"
-  },
-  "context": {
-    "recentTransactions": [],
-    "userPreferences": {}
-  }
+  "userId": "123e4567-e89b-12d3-a456-426614174000"
 }
 ```
 
@@ -75,7 +64,7 @@
 
 **Продюсер:** Reasoning Agent  
 **Консьюмеры:** Core Service  
-**Ключ:** `correlationId` (UUID) – тот же, что был в запросе.  
+**Ключ:** `transactionId` (UUID) – тот же, что был в запросе.  
 **Партиции:** 2  
 **Replication factor:** 1  
 **Retention:** 3 дня  
@@ -83,15 +72,9 @@
 **Пример сообщения:**
 ```json
 {
-  "correlationId": "7a1e8f3c-5d2b-4a6e-9c8f-1d2e3f4a5b6c",
   "transactionId": "550e8400-e29b-41d4-a716-446655440000",
   "category": "food_and_drinks",
-  "confidence": 0.95,
-  "model": "gpt-4o",
-  "latencyMs": 1250,
-  "details": {
-    "reasoning": "Транзакция в Starbucks, сумма небольшая, типично для категории 'Еда и напитки'."
-  }
+  "confidence": 0.95
 }
 ```
 
@@ -118,8 +101,7 @@
   "requestedAt": "2026-02-17T15:30:00Z",
   "parameters": {
     "periodDays": 30,
-    "includeCategories": ["food", "transport"],
-    "forceRefresh": true
+    "message": "На какой категорий я мог бы сэкономить больше всего?"
   }
 }
 ```
@@ -131,7 +113,7 @@
 Готовые финансовые советы, сгенерированные Coach Agent.
 
 **Продюсер:** Coach Agent  
-**Консьюмеры:** Notify Service (опционально), также может использоваться для логирования.  
+**Консьюмеры:** Notify Service
 **Ключ:** `userId` (UUID)  
 **Партиции:** 2  
 **Replication factor:** 1  
@@ -157,3 +139,70 @@
 - **Количество партиций** выбрано с учётом возможного параллелизма, но может быть изменено при масштабировании.
 - Все топики используют **cleanup.policy=delete** (удаление по истечении retention).
 - Для разработки replication factor = 1, в продакшене рекомендуется 3.
+
+# Kafka Setup
+
+## Версии и образы
+- Kafka: `confluentinc/cp-kafka:7.5.0`
+- Zookeeper: `confluentinc/cp-zookeeper:7.5.0`
+
+## Docker Compose
+
+```yaml
+# фрагмент docker-compose.infrastructure.yml
+zookeeper:
+  image: confluentinc/cp-zookeeper:7.5.0
+  environment:
+    ZOOKEEPER_CLIENT_PORT: 2181
+
+kafka:
+  image: confluentinc/cp-kafka:7.5.0
+  depends_on:
+    - zookeeper
+  environment:
+    KAFKA_BROKER_ID: 1
+    KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+```
+
+## Создание топиков
+
+В проекте используется гибридный подход:
+
+1. **Автоматическое создание** включено (`auto.create.topics.enable=true`) для удобства разработки.
+2. При первом запуске выполняется **скрипт инициализации**, который создаёт топики с правильными параметрами (партиции, retention):
+
+```bash
+kafka-topics.sh --create --bootstrap-server localhost:9092 \
+  --topic raw-transactions \
+  --partitions 3 \
+  --replication-factor 1
+```
+
+## Проверка работы
+```bash
+# Зайти в контейнер
+docker exec -it kafka bash
+
+# Посмотреть список топиков
+kafka-topics --list --bootstrap-server localhost:9092
+
+# Прочитать сообщения из топика
+kafka-console-consumer --bootstrap-server localhost:9092 --topic raw-transactions --from-beginning
+```
+
+## Подключение в Spring Boot (примерно)
+```yaml
+spring:
+  kafka:
+    bootstrap-servers: kafka:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+```
