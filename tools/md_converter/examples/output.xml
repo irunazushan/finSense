@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <project_documentation>
+  </project_documentation>
+  <kafka_connection>
+    Kafka is an event streaming platform. It provides distributed connectivity between services and applications.
+    
+    Connection parameters:
+    - Host: localhost
+    - Port: 9092
+    - Timeout: 30s
+  </kafka_connection>
+  <kafka_settings>
+    - min.insync.replicas: 2
+    - log.retention.hours: 168
+    - num.partitions: 3
+  </kafka_settings>
+  <broker_configuration>
+    Broker-specific settings for Kafka deployment.
+    
+    Configure each broker with:
+    1. broker.id
+    2. zookeeper.connect
+    3. listeners
+  </broker_configuration>
+  <api_documentation>
+    REST API endpoints for integration with finSense platform.
+  </api_documentation>
+  <authentication_endpoints>
+    POST /auth/login - User login
+    POST /auth/refresh - Refresh token
+  </authentication_endpoints>
+  <data_endpoints>
+    GET /api/data/summary - Get summary data
+    POST /api/data/export - Export data
+  </data_endpoints>
+  <advanced_settings>
+    Settings for production deployments &amp; performance tuning.
+  </advanced_settings>
+  <performance_tuning>
+    - Enable compression: true
+    - Buffer memory: 64MB
+    - Batch size: 16KB
+  </performance_tuning>
+  <monitoring>
+    Setup CloudWatch metrics &amp; dashboards for production monitoring.
+  </monitoring>
+</root>

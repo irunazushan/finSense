@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <kafka_topics>
+    | Топик | Продюсер | Консьюмер |
+    |-------|----------|----------|
+    | `raw-transactions` | Generator | Core |
+  </kafka_topics>
+  <docker_compose>
+    ```yaml
+    # фрагмент docker-compose.infrastructure.yml
+    zookeeper:
+      image: confluentinc/cp-zookeeper:7.5.0
+      environment:
+        ZOOKEEPER_CLIENT_PORT: 2181
+    ```
+  </docker_compose>
+  <next_section>
+    Some content here
+  </next_section>
+</root>
