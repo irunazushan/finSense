@@ -5,8 +5,8 @@
 | Топик | Продюсер | Консьюмер | Ключ | Retention |
 |-------|----------|--------------|------|-----------|
 | `raw-transactions` | Generator | Core | `transactionId` | 7 дней |
-| `llm-classifier-requests` | Core | Reasoning Agent | `transactionId` | 3 дня |
-| `llm-classifier-responses` | Reasoning Agent | Core | `transactionId` | 3 дня |
+| `llm-classifier-requests` | Core | Transaction Classifier Agent | `transactionId` | 3 дня |
+| `llm-classifier-responses` | Transaction Classifier Agent | Core | `transactionId` | 3 дня |
 | `coach-requests` | Core | Coach Agent | `userId` | 7 дней |
 | `coach-responses` | Coach Agent | Notify Service | `userId` | 3 дня |
 

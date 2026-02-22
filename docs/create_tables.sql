@@ -10,8 +10,8 @@ CREATE TABLE core.users (
 CREATE TABLE core.accounts (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
-    account_number VARCHAR(50) NOT NULL UNIQUE,
-    account_type VARCHAR(50) NOT NULL DEFAULT 'debit',
+    number VARCHAR(50) NOT NULL UNIQUE,
+    type VARCHAR(50) NOT NULL DEFAULT 'debit',
     currency VARCHAR(3) NOT NULL DEFAULT 'RUB',
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
