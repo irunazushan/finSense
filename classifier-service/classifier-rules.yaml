@@ -1,0 +1,104 @@
+# classifier-rules.yaml
+
+# MCC-коды — точное соответствие
+mcc:
+  # Код: категория
+  5812: FOOD_AND_DRINKS  # рестораны
+  5813: FOOD_AND_DRINKS  # бары
+  4121: TRANSPORT        # такси
+  4111: TRANSPORT        # местный транспорт
+  5912: HEALTH           # аптеки
+  7832: ENTERTAINMENT    # кино
+  7922: ENTERTAINMENT    # театры
+  5651: SHOPPING         # одежда
+  5311: SHOPPING         # универмаги
+
+# Ключевые слова для description и merchant name
+keywords:
+  - category: FOOD_AND_DRINKS
+    words:
+      - кофе
+      - кофейня
+      - ресторан
+      - кафе
+      - бургер
+      - пицца
+      - суши
+      - столовая
+      - starbucks
+      - coffee
+      - restaurant
+      - cafe
+    
+  - category: TRANSPORT
+    words:
+      - такси
+      - метро
+      - автобус
+      - троллейбус
+      - трамвай
+      - uber
+      - yandex taxi
+      - яндекс.такси
+      - транспорт
+      - taxi
+      - bus
+      - train
+    
+  - category: SHOPPING
+    words:
+      - магазин
+      - супермаркет
+      - продукт
+      - ozon
+      - wildberries
+      - amazon
+      - магнит
+      - пятерочка
+      - перекресток
+      - ашан
+      - лента
+      - shop
+      - store
+      - supermarket
+    
+  - category: ENTERTAINMENT
+    words:
+      - кино
+      - кинотеатр
+      - театр
+      - концерт
+      - клуб
+      - бар
+      - караоке
+      - cinema
+      - theater
+      - concert
+      - club
+    
+  - category: HEALTH
+    words:
+      - аптека
+      - больница
+      - клиника
+      - врач
+      - стоматолог
+      - парикмахерская
+      - спа
+      - салон
+      - косметолог
+      - массаж
+      - pharmacy
+      - hospital
+      - clinic
+      - doctor
+      - dentist
+      - hairdresser
+      - spa
+
+# Настройки confidence
+confidence:
+  mcc_base: 0.95           # если есть MCC
+  keyword_base: 0.85        # базовый для ключевых слов
+  boost_per_match: 0.05     # добавка за каждый доп. источник
+  max: 0.99                 # максимум
