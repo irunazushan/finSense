@@ -38,7 +38,7 @@ services:
     networks:
       - finsense-net
     restart: unless-stopped
-    
+
   reasoning:
     build:
       context: ./transaction-classifier-agent
@@ -56,6 +56,33 @@ services:
     networks:
       - finsense-net
     depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  coach:
+    build:
+      context: ./financial-coach-agent
+      dockerfile: Dockerfile
+    container_name: coach-agent
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: 8083
+      DB_URL: jdbc:postgresql://postgres:5432/finsense
+      DB_USER: finsense
+      DB_PASSWORD: finsense
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LLM_API_KEY: ${DEEPSEEK_API_KEY}
+      LLM_MODEL: deepseek-chat
+      ANALYTICS_TOP_MERCHANTS_LIMIT: 5
+    volumes:
+      - ./logs/coach-llm:/var/log/finsense/coach-llm
+    networks:
+      - finsense-net
+    depends_on:
+      postgres:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     restart: unless-stopped

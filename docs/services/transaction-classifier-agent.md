@@ -31,8 +31,7 @@ Reasoning Agent является **асинхронным процессором
 | Фреймворк               | Spring Boot 3.x                | Удобная интеграция с Kafka и JDBC, богатая экосистема.                      |
 | Сборка                  | Gradle (Kotlin DSL)            | Гибкость, декларативность.                                                  |
 | Работа с Kafka          | Spring Kafka                   | `@KafkaListener`, `KafkaTemplate`, поддержка корутин.                       |                 |
-| HTTP-клиент для LLM     | WebClient (реактивный)         | Асинхронные вызовы LLM API, неблокирующий ввод-вывод.                       |
-| Логирование             | Logback + файловые appender'ы  | Запись полных промптов и ответов LLM в отдельные файлы.                     |
+| AI-клиент | Spring AI (ChatClient) | Унифицированный доступ к LLM, встроенная поддержка промптов и function calling || Логирование             | Logback + файловые appender'ы  | Запись полных промптов и ответов LLM в отдельные файлы.                     |
 | Сериализация            | Jackson / kotlinx.serialization | Обработка JSON для запросов/ответов LLM.                                    |
 | Мониторинг              | Spring Boot Actuator           | Health checks, метрики.                                                     |
 | Контейнеризация         | Docker                         | Изоляция, воспроизводимость.                                                |
