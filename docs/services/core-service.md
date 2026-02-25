@@ -25,7 +25,7 @@ Core Service выполняет роль **оркестратора**:
 - Принимает пользовательские запросы (синхронно через REST).
 - Потребляет сырые транзакции из Kafka (от Generator).
 - Вызывает **Classifier Service** синхронно для быстрой ML‑классификации.
-- При низкой уверенности ML публикует событие в Kafka для **Transaction Classifier Agent**.
+- При низкой уверенности ML - core публикует событие в Kafka  для **Transaction Classifier Agent**.
 - Потребляет результаты LLM‑классификации и обновляет статус транзакции.
 - По расписанию или по запросу публикует события для **Financial Coach Agent**.
 - Сохраняет финальные результаты в БД и отдаёт их клиентам по REST.
@@ -103,7 +103,7 @@ Core Service выполняет роль **оркестратора**:
 
 | Топик                     | Тип сообщения                                    | Назначение                              |
 |---------------------------|--------------------------------------------------|-----------------------------------------|
-| `llm-classifier-requests` | `{ transactionId, userId }`                      | Запрос на LLM‑классификацию             |
+| `llm-classifier-requests` | `{ transaction, history, historySize }`                      | Запрос на LLM‑классификацию  с контекстом             |
 | `coach-requests`          | `{ requestId, userId, trigger, requestedAt, parameters? }` | Запрос на генерацию совета              |
 
 ### Потребляемые события (Kafka)
@@ -191,6 +191,8 @@ app:
     confidence-threshold: ${CLASSIFIER_CONFIDENCE_THRESHOLD:0.9}
   scheduler:
     coach-cron: ${COACH_SCHEDULER_CRON:0 0 2 * * ?}
+  reasoning:
+    history-size: ${REASONING_HISTORY_SIZE:20}
 ```
 
 ## 8. Контейнеризация и запуск в Docker

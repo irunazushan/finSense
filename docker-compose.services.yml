@@ -38,3 +38,24 @@ services:
     networks:
       - finsense-net
     restart: unless-stopped
+    
+  reasoning:
+    build:
+      context: ./transaction-classifier-agent
+      dockerfile: Dockerfile
+    container_name: reasoning-agent
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LLM_API_KEY: ${DEEPSEEK_API_KEY}
+      LLM_MODEL: deepseek-chat
+    volumes:
+      - ./logs/llm-classifier:/var/log/finsense/llm-classifier
+    networks:
+      - finsense-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
