@@ -55,7 +55,7 @@ Classifier Service является **вычислительным узлом** 
 | `ClassifyController`       | Единственный REST-эндпоинт `POST /api/classify`.                           |
 | `ClassificationService`    | Принимает `TransactionData`, вызывает `RuleEngine`, возвращает `ClassificationResult`. |
 | `RuleEngine`               | Содержит логику классификации: проверка MCC, поиск по ключевым словам, нормализация. |
-| `TextNormalizer`           | Утилита для нормализации текста (toLowerCase, удаление пунктуации, стемминг опционально). |
+| `TextNormalizer`           | lower-case, trim, replace punctuation → space, collapse spaces. |
 | `TransactionCategory`      | Enum со списком допустимых категорий (включая `UNDEFINED`).                |
 
 ### Потоки данных внутри сервиса
@@ -67,6 +67,50 @@ Classifier Service является **вычислительным узлом** 
    - Проверяет `mccCode` по словарю.
    - Применяет правила по ключевым словам (регулярные выражения) для description и merchant_name тразакции.
    - Комбинирует результаты и вычисляет итоговую категорию и confidence.
+
+## Rule Conflict Resolution Strategy
+
+При одновременном совпадении нескольких правил применяется следующая стратегия приоритета:
+
+1. **MCC имеет приоритет над ключевыми словами**, если найдено точное соответствие MCC-кода.
+2. Если MCC не найден:
+   - применяются правила по ключевым словам.
+3. Если совпадает несколько keyword-правил:
+   - выбирается категория с наибольшим рассчитанным `confidence`.
+4. Если ни одно правило не сработало:
+   - возвращается категория `UNDEFINED`
+   - `confidence = 0.0`
+
+Таким образом обеспечивается детерминированность и предсказуемость классификации.
+
+## Confidence Calculation Logic
+
+Расчёт `confidence` выполняется по следующим правилам:
+
+### Для MCC:
+```
+confidence = min(mcc_base, max)
+```
+
+Если дополнительно совпали keyword-правила той же категории:
+```
+confidence = min(mcc_base + boost_per_match * matchesCount, max)
+```
+
+### Для keyword-правил (если MCC не найден):
+```
+confidence = min(keyword_base + boost_per_match * matchesCount, max)
+```
+
+### Если совпадений нет:
+```
+category = UNDEFINED
+confidence = 0.0
+```
+
+Все параметры (`mcc_base`, `keyword_base`, `boost_per_match`, `max`)
+задаются в `classifier-rules.yaml`.
+  
 5. **Формирование ответа** — `ClassificationResult` (категория, confidence, источник "RULE").
 6. **Выход** — JSON-ответ.
 
@@ -141,7 +185,7 @@ app:
     rules-file: classpath:classifier-rules.yaml
 ```
 
-В _classifier-rules.yaml_ будет хранится в виде ключа - значения? где ключом будет тип параметра и значением - категория к которому оно относится:
+В _classifier-rules.yaml_ будет хранится в виде ключа - значения, где ключом будет тип параметра и значением - категория к которому оно относится:
 
 ```yaml
 mcc:
@@ -179,10 +223,10 @@ confidence:
 # ---- Builder stage ----
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /app
-COPY classifier-service/pom.xml .
+COPY pom.xml .
 RUN mvn dependency:go-offline
 
-COPY classifier-service/src ./src
+COPY src ./src
 RUN mvn clean package -DskipTests
 
 # ---- Runner stage ----
@@ -233,3 +277,4 @@ docker-compose -f docker-compose.services.yml up -d classifier
     - RuleBasedStrategy
     - SmileModelStrategy
 - Выбор через configuration
+- так же можно вынести TransactionCategory в общий gradle/maven модуль типа common-dto

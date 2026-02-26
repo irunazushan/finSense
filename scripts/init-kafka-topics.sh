@@ -39,7 +39,7 @@ create_topic() {
 }
 
 # Создаём все топики с заданными параметрами
-create_topic "raw-transactions"             3 604800000   # 7 дней
+create_topic "raw-transactions"             2 604800000   # 7 дней
 create_topic "llm-classifier-requests"      2 259200000   # 3 дня
 create_topic "llm-classifier-responses"     2 259200000   # 3 дня
 create_topic "coach-requests"               2 604800000   # 7 дней

@@ -79,6 +79,53 @@ Core Service выполняет роль **оркестратора**:
 2. **LLM-ответ:** `LlmClassifierResponseConsumer` → `TransactionService` → обновление транзакции в БД.
 3. **Генерация рекомендаций:** Scheduler или ручной вызов → `RecommendationService` → `CoachRequestProducer`.
 
+## Transaction Statuses (Core Service)
+
+Транзакция в Core Service проходит через конечный набор состояний (enum `TransactionStatus`).
+
+### Список статусов
+
+- **NEW**  
+  Транзакция сохранена в БД, но ещё не обработана классификатором.
+
+- **ML_CLASSIFYING**  
+  Выполняется синхронная ML-классификация.
+
+- **WAITING_LLM_RESULT**  
+  ML confidence ниже порога.  
+  Отправлен `llm-classifier-request` в Kafka, ожидается `llm-classifier-response`.
+
+- **CLASSIFIED**  
+  Транзакция успешно классифицирована:
+  - либо ML (confidence ≥ threshold),
+  - либо LLM (fallback).
+
+  Поля `category`, `classifier_source`, `classifier_confidence`
+  заполнены и считаются финальными.
+
+- **RETRYING**  
+  Произошла ошибка при ML или при обработке LLM-ответа.  
+  Выполняется повторная попытка (retry).
+
+- **FAILED**  
+  Транзакция не может быть обработана:
+  - превышен лимит retry,
+  - произошёл timeout ожидания LLM,
+  - критическая ошибка обработки.
+
+---
+
+## Логика переходов (упрощённо)
+
+- NEW → ML_CLASSIFYING
+- ML_CLASSIFYING → CLASSIFIED (если confidence ≥ threshold)
+- ML_CLASSIFYING → WAITING_LLM_RESULT (если confidence < threshold)
+- WAITING_LLM_RESULT → CLASSIFIED (при получении LLM ответа)
+- Любое состояние → RETRYING (при временной ошибке)
+- RETRYING → ML_CLASSIFYING (повтор)
+- RETRYING → FAILED (если превышен maxRetries)
+- WAITING_LLM_RESULT → FAILED (если timeout ожидания ответа)
+
 ---
 
 ## 4. REST API (контракт)
@@ -103,7 +150,7 @@ Core Service выполняет роль **оркестратора**:
 
 | Топик                     | Тип сообщения                                    | Назначение                              |
 |---------------------------|--------------------------------------------------|-----------------------------------------|
-| `llm-classifier-requests` | `{ transaction, history, historySize }`                      | Запрос на LLM‑классификацию  с контекстом             |
+| `llm-classifier-requests` | `{ requestId, transactionId, occuredAt, transaction, confidence, predictedCategory, history }`                      | Запрос на LLM‑классификацию  с контекстом             |
 | `coach-requests`          | `{ requestId, userId, trigger, requestedAt, parameters? }` | Запрос на генерацию совета              |
 
 ### Потребляемые события (Kafka)
@@ -111,7 +158,7 @@ Core Service выполняет роль **оркестратора**:
 | Топик                     | Тип сообщения                                    | Назначение                              |
 |---------------------------|--------------------------------------------------|-----------------------------------------|
 | `raw-transactions`        | `{ transactionId, userId, amount, description, merchantName, mccCode, timestamp }` | Получение сырых транзакций от Generator |
-| `llm-classifier-responses`| `{ transactionId, category, confidence }`        | Результат LLM‑классификации              |
+| `llm-classifier-responses`| `{ requestId, transactionId, category, confidence, processedAt }`        | Результат LLM‑классификации              |
 
 ### REST‑взаимодействие
 

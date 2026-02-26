@@ -1,8 +1,8 @@
 # ---- Builder stage ----
 FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
-COPY financial-coach-agent/build.gradle.kts settings.gradle.kts ./
-COPY financial-coach-agent/src ./src
+COPY build.gradle.kts settings.gradle.kts ./
+COPY src ./src
 RUN gradle :financial-coach-agent:bootJar --no-daemon
 
 # ---- Runner stage ----

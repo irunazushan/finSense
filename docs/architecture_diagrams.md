@@ -246,27 +246,23 @@ sequenceDiagram
 ## State Diagram
 ```mermaid
 stateDiagram-v2
-
     [*] --> NEW
 
-    NEW --> ML_CLASSIFYING : TransactionCreatedEvent
+    NEW --> ML_CLASSIFYING : raw-transaction consumed
 
-    ML_CLASSIFYING --> ML_CLASSIFIED : confidence >= threshold
-    ML_CLASSIFYING --> LLM_CLASSIFYING : confidence < threshold
+    ML_CLASSIFYING --> CLASSIFIED : confidence >= threshold\n(save category=ML)
+    ML_CLASSIFYING --> WAITING_LLM_RESULT : confidence < threshold\n(publish llm-classifier-request)
     ML_CLASSIFYING --> RETRYING : ML error
 
-    LLM_CLASSIFYING --> CLASSIFIED : success
-    LLM_CLASSIFYING --> RETRYING : LLM error
+    WAITING_LLM_RESULT --> CLASSIFIED : llm-classifier-response received\n(save category=LLM)
+    WAITING_LLM_RESULT --> RETRYING : LLM processing error
+    WAITING_LLM_RESULT --> FAILED : timeout waiting LLM response
 
-    RETRYING --> ML_CLASSIFYING : retry ML
-    RETRYING --> LLM_CLASSIFYING : retry LLM
+    RETRYING --> ML_CLASSIFYING : retry
     RETRYING --> FAILED : max retries exceeded
-
-    ML_CLASSIFIED --> CLASSIFIED : persist result
 
     CLASSIFIED --> [*]
     FAILED --> [*]
-
 ```
 
 ## Deployment Diagram

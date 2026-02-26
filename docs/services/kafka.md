@@ -41,7 +41,7 @@
 Запросы на LLM-классификацию для транзакций, с которыми ML-классификатор не справился. Core Service добавляет в сообщение полные данные транзакции и историю последних транзакций пользователя.
 
 **Продюсер:** Core Service  
-**Консьюмеры:** Reasoning Agent  
+**Консьюмеры:** Transaction Classifier Agent
 **Ключ:** `transactionId` (UUID) – для связывания запроса и ответа.  
 **Партиции:** 2  
 **Replication factor:** 1  
@@ -50,6 +50,9 @@
 **Пример сообщения:**
 ```json
 {
+  "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
+  "transactionId": "550e8400-e29b-41d4-a716-446655440000",
+  "occurredAt": "2026-02-10T10:15:30Z",
   "transaction": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "amount": 1250.75,
@@ -58,6 +61,8 @@
     "mccCode": "5812",
     "timestamp": "2026-02-17T12:34:56Z"
   },
+  "confidence": 0.62,
+  "predictedCategory": "TRANSPORT",
   "history": [
     {
       "id": "660e8400-e29b-41d4-a716-446655440001",
@@ -75,9 +80,7 @@
       "mccCode": "5812",
       "timestamp": "2026-02-15T20:30:00Z"
     }
-    // ... до 20 транзакций
-  ],
-  "historySize": 20
+  ]
 }
 ```
 
@@ -98,9 +101,11 @@
 **Пример сообщения:**
 ```json
 {
+  "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
   "transactionId": "550e8400-e29b-41d4-a716-446655440000",
   "category": "food_and_drinks",
-  "confidence": 0.95
+  "confidence": 0.95,
+  "processedAt": "2026-02-10T10:15:33Z"
 }
 ```
 
@@ -148,7 +153,7 @@
 **Пример сообщения:**
 ```json
 {
-  "recommendationId": "f1e2d3c4-b5a6-4c3d-9e8f-7a6b5c4d3e2f",
+  "requestId": "f1e2d3c4-b5a6-4c3d-9e8f-7a6b5c4d3e2f",
   "userId": "123e4567-e89b-12d3-a456-426614174000",
   "createdAt": "2026-02-17T15:31:00Z",
   "summary": "Вы тратите на кофе 5000 руб в месяц",
@@ -182,14 +187,38 @@ zookeeper:
     ZOOKEEPER_CLIENT_PORT: 2181
 
 kafka:
-  image: confluentinc/cp-kafka:7.5.0
-  depends_on:
-    - zookeeper
-  environment:
-    KAFKA_BROKER_ID: 1
-    KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-    KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    networks:
+      - finsense-net
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c", "/scripts/init-kafka-topics.sh"]
+    volumes:
+      - ./scripts:/scripts
+    networks:
+      - finsense-net
+    restart: "no"
 ```
 
 ## Создание топиков
@@ -202,7 +231,7 @@ kafka:
 ```bash
 kafka-topics.sh --create --bootstrap-server localhost:9092 \
   --topic raw-transactions \
-  --partitions 3 \
+  --partitions 2 \
   --replication-factor 1
 ```
 

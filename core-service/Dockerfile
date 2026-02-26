@@ -1,8 +1,8 @@
 # ---- Builder stage ----
 FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
-COPY core-service/build.gradle.kts settings.gradle.kts ./
-COPY core-service/src ./src
+COPY build.gradle.kts settings.gradle.kts ./
+COPY /src ./src
 RUN gradle :core-service:bootJar --no-daemon
 
 # ---- Runner stage ----

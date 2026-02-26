@@ -1,8 +1,8 @@
 # ---- Builder stage ----
 FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
-COPY transaction-classifier-agent/build.gradle.kts settings.gradle.kts ./
-COPY transaction-classifier-agent/src ./src
+COPY build.gradle.kts settings.gradle.kts ./
+COPY src ./src
 RUN gradle :transaction-classifier-agent:bootJar --no-daemon
 
 # ---- Runner stage ----
