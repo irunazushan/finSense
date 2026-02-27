@@ -155,10 +155,10 @@
 {
   "requestId": "f1e2d3c4-b5a6-4c3d-9e8f-7a6b5c4d3e2f",
   "userId": "123e4567-e89b-12d3-a456-426614174000",
-  "createdAt": "2026-02-17T15:31:00Z",
   "summary": "Вы тратите на кофе 5000 руб в месяц",
   "advice": "Попробуйте готовить дома — сэкономите до 3000 руб",
-  "category": "spending"
+  "category": "spending",
+  "createdAt": "2026-02-25T15:30:12Z"
 }
 ```
 

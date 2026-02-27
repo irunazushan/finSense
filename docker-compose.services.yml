@@ -86,3 +86,17 @@ services:
       kafka:
         condition: service_healthy
     restart: unless-stopped
+
+  notify:
+    build:
+      context: ./notify-service
+      dockerfile: Dockerfile
+    container_name: notify-service
+    ports:
+      - "8084:8084"
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+    networks:
+      - finsense-net
+    restart: unless-stopped

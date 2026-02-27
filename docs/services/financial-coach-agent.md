@@ -74,6 +74,7 @@ Coach Agent является **асинхронным аналитическим
    `CoachRequestConsumer` получает сообщение из Kafka:
    ```json
    {
+     "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
      "userId": "123e4567-e89b-12d3-a456-426614174000",
      "trigger": "manual",
      "requestedAt": "2026-02-25T15:30:00Z",
@@ -85,11 +86,16 @@ Coach Agent является **асинхронным аналитическим
    ```
 
 2. **Анализ данных**  
-   `CoachService` вызывает методы `TransactionAnalyzer`:
-   - `getSpendingByCategory(userId, periodDays)` – суммы по категориям.
-   - `getMonthlyDelta(userId)` – сравнение с предыдущим периодом.
-   - `getTopMerchants(userId, periodDays, limit = 5)` – топ-мерчанты.
-   - `detectSpikes(userId, periodDays)` – категории с аномальным ростом.
+
+Coach Agent использует детерминированные "tools" — методы анализа, которые возвращают агрегированные данные.
+LLM получает на вход **только результаты tools**, а не сырые транзакции (уменьшение токенов и повышение контролируемости).
+
+**TransactionAnalyzer** содержит:
+
+- `getSpendingByCategory(userId, periodDays): List<CategorySpending>`
+- `getMonthlyDelta(userId, periodDays): List<CategoryDelta>`
+- `getTopMerchants(userId, periodDays, limit): List<MerchantStat>`
+- `detectSpikes(userId, periodDays): List<SpikeInfo>`
 
 3. **Формирование промпта**  
    `LLMService` строит промпт, включая результаты анализа и, если есть, `message` от пользователя.
@@ -105,11 +111,12 @@ Coach Agent является **асинхронным аналитическим
    `CoachResponseProducer` отправляет событие в `coach-responses` для Notify Service:
    ```json
    {
-     "recommendationId": "f1e2d3c4-b5a6-4c3d-9e8f-7a6b5c4d3e2f",
+     "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
      "userId": "123e4567-e89b-12d3-a456-426614174000",
      "summary": "Больше всего вы тратите на покупки в интернет-магазинах — 40% бюджета...",
      "advice": "Попробуйте начать ходить в физические магазины, так как ...",
-     "category": "shopping"
+     "category": "shopping",
+     "createdAt": "2026-02-25T15:30:12Z"
    }
    ```
 
@@ -308,12 +315,12 @@ services:
 
 Логи сохраняются в файловой системе по пути, указанному в `app.logging.llm-logs-dir`. Формат файлов:
 
-- Имя: `{transactionId}_{timestamp}.json`
+- Имя: `{requestId}_{timestamp}.json`
 - Содержимое:
   ```json
   {
     "timestamp": "2026-02-25T10:15:30Z",
-    "transactionId": "550e8400-e29b-41d4-a716-446655440000",
+    "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
     "userId": "123e4567-e89b-12d3-a456-426614174000",
     "model": "deepseek-chat",
     "prompt": "полный текст промпта...",
