@@ -118,7 +118,11 @@ erDiagram
         uuid id PK
         uuid user_id FK
         timestamp created_at
-        json advice_data
+        string status
+        jsonb advice_data
+        jsonb request_params
+        timestamp completed_at
+        text error
     }
 
     CORE__USERS ||--o{ CORE__ACCOUNTS : ""
@@ -181,59 +185,60 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Core
+    participant DB
     participant Kafka
     participant Coach as Financial Coach Agent
-    participant DB
     participant LLM as LLM Provider
     participant Notify as Notify Service
     participant TG as Telegram Bot
 
-    User->>Core: POST /users/{id}/recommendations/refresh
+    User->>Core: POST /users/{id}/recommendations
     activate Core
-    Core->>Kafka: coach-request (userId, requestId)
-    deactivate Core
+
+    Core->>Core: generate requestId (UUID)
+    Core->>DB: INSERT recommendation (id=requestId, status=PENDING)
+    activate DB
+    DB-->>Core: OK
+    deactivate DB
+
+    Core->>Kafka: publish coach-request (requestId, userId, params)
     Core-->>User: 202 Accepted (requestId)
+    deactivate Core
 
-    activate Kafka
     Kafka-->>Coach: consume coach-request
-    deactivate Kafka
-
     activate Coach
-    Coach->>DB: get transactions (last n days)
+
+    Coach->>DB: SELECT transactions (read-only)
     activate DB
     DB-->>Coach: transaction list
     deactivate DB
 
-    Coach->>Coach: call tools (spending_by_category, monthly_delta, etc.)
-    Coach->>LLM: call LLM with a prompt enriched by the tools result
+    Coach->>Coach: call tools (aggregations)
+    Coach->>LLM: generate recommendation (prompt + tool results)
     activate LLM
-    LLM-->>Coach: recommendation
+    LLM-->>Coach: recommendation content
     deactivate LLM
 
-    Coach->>DB: save recommendation (advice_data JSONB)
+    Coach->>DB: UPDATE recommendation SET status=COMPLETED, advice_data, completed_at
     activate DB
-    DB-->>Coach: saved
+    DB-->>Coach: OK
     deactivate DB
 
-    Coach->>Kafka: coach-response (userId, requestId)
+    Coach->>Kafka: publish coach-response (requestId, userId, summary, advice)
     deactivate Coach
 
-    activate Kafka
     Kafka-->>Notify: consume coach-response
-    deactivate Kafka
-
     activate Notify
-    
     Notify->>TG: send message (Telegram API)
     deactivate Notify
 
-    User->>Core: GET /users/{id}/recommendations
+    User->>Core: GET /recommendations/{requestId}
     activate Core
-    Core->>DB: get latest recommendations
+    Core->>DB: SELECT recommendation WHERE id=requestId
     activate DB
-    DB-->>Core: recommendations list
+    DB-->>Core: status + advice_data
     deactivate DB
-    Core-->>User: 200 OK (recommendations)
+    Core-->>User: 200 OK (status, recommendation)
     deactivate Core
 ```
 

@@ -25,18 +25,18 @@ Coach Agent является **асинхронным аналитическим
 ---
 
 ## 2. Технологический стек
-
-| Компонент               | Технология                     | Обоснование                                                                 |
-|-------------------------|--------------------------------|-----------------------------------------------------------------------------|
-| Язык                    | Kotlin                         | Современный, лаконичный, корутины, единообразие с Core.                     |
-| Фреймворк               | Spring Boot 3.x                | Интеграция с Kafka, JDBC, удобное конфигурирование.                         |
-| Сборка                  | Gradle (Kotlin DSL)            | Гибкость, декларативность.                                                  |
-| Работа с Kafka          | Spring Kafka                   | `@KafkaListener`, `KafkaTemplate`.                                          |
-| Доступ к БД             | Spring Data JPA / Hibernate    | Чтение транзакций, запись рекомендаций.                                     |
-| AI-клиент | Spring AI (ChatClient) | Унифицированный доступ к LLM, встроенная поддержка промптов и function calling || Логирование             | Logback + файловые appender'ы  | Запись промптов и ответов LLM в файлы.                                      |
-| Сериализация            | Jackson / kotlinx.serialization | Обработка JSON.                                                             |
-| Мониторинг              | Spring Boot Actuator           | Health checks, метрики.                                                     |
-| Контейнеризация         | Docker                         | Изоляция, воспроизводимость.                                                |
+| Технология                      | Обоснование                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| Kotlin                          | Современный, лаконичный, корутины, единообразие с Core.                         |
+| Spring Boot 3.x                 | Интеграция с Kafka, JDBC, удобное конфигурирование.                             |
+| Gradle (Kotlin DSL)             | Гибкость, декларативность.                                                      |
+| Spring Kafka                    | `@KafkaListener`, `KafkaTemplate`.                                              |
+| Spring Data JPA / Hibernate     | Чтение транзакций, запись рекомендаций.                                         |
+| Spring AI (ChatClient)          | Унифицированный доступ к LLM, встроенная поддержка промптов и function calling. |
+| Logback + файловые appender'ы   | Запись промптов и ответов LLM в файлы.                                          |
+| Jackson / kotlinx.serialization | Обработка JSON.                                                                 |
+| Spring Boot Actuator            | Health checks, метрики.                                                         |
+| Docker                          | Изоляция, воспроизводимость.                                                    |
 
 ---
 
@@ -70,8 +70,9 @@ Coach Agent является **асинхронным аналитическим
 
 ### Потоки данных внутри сервиса
 
-1. **Получение запроса**  
-   `CoachRequestConsumer` получает сообщение из Kafka:
+**1. Получение запроса**
+   `CoachRequestConsumer` получает сообщение из Kafka topic `coach-requests` и извлекает `requestId`, `userId` и параметры периода/сообщения пользователя.
+
    ```json
    {
      "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
@@ -85,43 +86,71 @@ Coach Agent является **асинхронным аналитическим
    }
    ```
 
-2. **Анализ данных**  
+**2. Чтение данных и анализ (tools)**
+   Coach Agent читает транзакции из PostgreSQL **в режиме read-only** и использует детерминированные “tools” (методы анализа), которые возвращают агрегированные данные.
+   LLM получает на вход **только результаты tools**, а не сырые транзакции (уменьшение токенов, повышение контролируемости и снижение риска галлюцинаций).
 
-Coach Agent использует детерминированные "tools" — методы анализа, которые возвращают агрегированные данные.
-LLM получает на вход **только результаты tools**, а не сырые транзакции (уменьшение токенов и повышение контролируемости).
+   `TransactionAnalyzer` содержит (минимальный набор):
 
-**TransactionAnalyzer** содержит:
+   * `getSpendingByCategory(userId, periodDays): List<CategorySpending>`
+   * `getMonthlyDelta(userId, periodDays): List<CategoryDelta>`
+   * `getTopMerchants(userId, periodDays, limit): List<MerchantStat>`
+   * `detectSpikes(userId, periodDays): List<SpikeInfo>`
 
-- `getSpendingByCategory(userId, periodDays): List<CategorySpending>`
-- `getMonthlyDelta(userId, periodDays): List<CategoryDelta>`
-- `getTopMerchants(userId, periodDays, limit): List<MerchantStat>`
-- `detectSpikes(userId, periodDays): List<SpikeInfo>`
+**3. Формирование промпта**
+   `LLMService` строит промпт на основе:
 
-3. **Формирование промпта**  
-   `LLMService` строит промпт, включая результаты анализа и, если есть, `message` от пользователя.
+   * результатов tools (агрегаты),
+   * параметров запроса (`periodDays`),
+   * опционального сообщения пользователя (`message`).
 
-4. **Вызов LLM**  
-   Асинхронный запрос к DeepSeek API, получение текстового совета.
+**4. Вызов LLM**
+   Выполняется запрос к LLM Provider (например DeepSeek API), в ответ получается текст рекомендации (и при необходимости структурированные поля для `advice_data`).
 
-5. **Сохранение результата**  
-   - Совет сохраняется в `recommendations` (JSONB-поле `advice_data`).
-   - В JSONB также могут быть сохранены результаты вызовов инструментов для отладки.
+**5. Обновление записи в БД**
+   Core Service заранее создаёт запись в `recommendations.recommendations` со статусом `PENDING`, где:
 
-6. **Публикация ответа (опционально)**  
-   `CoachResponseProducer` отправляет событие в `coach-responses` для Notify Service:
+   * `id = requestId`
+
+   Coach Agent обновляет существующую запись по `requestId`:
+
+   * при успехе:
+
+     * `status = COMPLETED`
+     * `advice_data = ...`
+     * `completed_at = now()`
+     * `error = NULL`
+
+   * при ошибке:
+
+     * `status = FAILED`
+     * `completed_at = now()`
+     * `error = ...`
+
+   В `advice_data` (JSONB) может быть сохранено:
+
+   * итоговое `summary/advice`,
+   * результаты tools (для дебага/воспроизводимости),
+   * метаданные LLM (модель, токены, latency).
+
+ **6. Публикация события для Notify Service**
+   После обновления БД `CoachResponseProducer` публикует сообщение в Kafka topic `coach-responses`.
+
    ```json
    {
      "requestId": "b8e2c8a4-2f6a-4baf-9f1c-6f7e6c77a1d2",
      "userId": "123e4567-e89b-12d3-a456-426614174000",
-     "summary": "Больше всего вы тратите на покупки в интернет-магазинах — 40% бюджета...",
-     "advice": "Попробуйте начать ходить в физические магазины, так как ...",
-     "category": "shopping",
-     "createdAt": "2026-02-25T15:30:12Z"
+     "summary": "Вы тратите на кофе около 5000 руб в месяц.",
+     "advice": "Попробуйте готовить дома — это может сэкономить до 3000 руб в месяц.",
+     "completedAt": "2026-02-25T15:30:12Z",
+     "status": "COMPLETED"
    }
    ```
+    Notify Service использует payload для отправки сообщения пользователю.
 
-7. **Логирование**  
-   `LLMLogger` записывает промпт, ответ, метаданные в файл.
+
+**7. Логирование**
+   `LLMLogger` сохраняет промпт, ответ и метаданные (model/tokens/latency) в файл (или в stdout JSON logs для Docker), используя `requestId` как основной идентификатор для трассировки.
 
 ---
 
@@ -131,13 +160,13 @@ LLM получает на вход **только результаты tools**, 
 
 | Топик                     | Тип сообщения                                    | Назначение                              |
 |---------------------------|--------------------------------------------------|-----------------------------------------|
-| `coach-requests`          | `{ userId, trigger, requestedAt, parameters }`   | Запрос на генерацию совета               |
+| `coach-requests`          | `{ requestId, userId, trigger, requestedAt, parameters }`   | Запрос на генерацию совета               |
 
 ### Публикуемые события (Kafka)
 
 | Топик                     | Тип сообщения                                    | Назначение                              |
 |---------------------------|--------------------------------------------------|-----------------------------------------|
-| `coach-responses`         | `{ recommendationId, userId, summary, advice, category }`| Уведомление о готовом совете (опционально) |
+| `coach-responses`         | `{ requestId, userId, summary, advice, completedAt, status }`| Уведомление о готовом совете (опционально) |
 
 ### Запросы к БД (PostgreSQL)
 

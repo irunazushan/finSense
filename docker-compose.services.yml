@@ -95,8 +95,12 @@ services:
     ports:
       - "8084:8084"
     environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
     networks:
       - finsense-net
+    depends_on:
+      kafka:
+        condition: service_healthy
     restart: unless-stopped
