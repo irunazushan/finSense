@@ -91,7 +91,7 @@ Core Service выполняет роль **оркестратора**:
 - **ML_CLASSIFYING**  
   Выполняется синхронная ML-классификация.
 
-- **WAITING_LLM_RESULT**  
+- **LLM_CLASSIFYING**  
   ML confidence ниже порога.  
   Отправлен `llm-classifier-request` в Kafka, ожидается `llm-classifier-response`.
 
@@ -119,12 +119,12 @@ Core Service выполняет роль **оркестратора**:
 
 - NEW → ML_CLASSIFYING
 - ML_CLASSIFYING → CLASSIFIED (если confidence ≥ threshold)
-- ML_CLASSIFYING → WAITING_LLM_RESULT (если confidence < threshold)
-- WAITING_LLM_RESULT → CLASSIFIED (при получении LLM ответа)
+- ML_CLASSIFYING → LLM_CLASSIFYING (если confidence < threshold)
+- LLM_CLASSIFYING → CLASSIFIED (при получении LLM ответа)
 - Любое состояние → RETRYING (при временной ошибке)
 - RETRYING → ML_CLASSIFYING (повтор)
 - RETRYING → FAILED (если превышен maxRetries)
-- WAITING_LLM_RESULT → FAILED (если timeout ожидания ответа)
+- LLM_CLASSIFYING → FAILED (если timeout ожидания ответа)
 
 ---
 

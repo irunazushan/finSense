@@ -4,7 +4,7 @@
 ```mermaid
 graph TB
     subgraph "Внешние системы"
-        LLM[LLM Provider<br>OpenAI/YandexGPT]
+        LLM[LLM Provider<br>OpenAI/DeepSeek]
         TG[Telegram Bot<br>Уведомления]
     end
 
@@ -70,7 +70,7 @@ graph TD
     Reasoning -->|LLM calls| LLM
     Kafka -->|llm‑classifier‑requests| Reasoning
     
-    Coach -->|LLM+tools| LLM
+    Coach -->|LLM calls| LLM
     Coach <-->|write advices/reading transactions| DB
     Coach -->|coach responses| Kafka
     Kafka -->|coach requests| Coach
@@ -92,8 +92,8 @@ erDiagram
     CORE__ACCOUNTS {
         uuid id PK
         uuid user_id FK
-        string account_number UK
-        string account_type
+        string number UK
+        string type
         string currency
         timestamp created_at
     }
@@ -147,25 +147,22 @@ sequenceDiagram
     activate Core
     Core->>Classifier: REST /classify (transaction)
     activate Classifier
-    Classifier-->>Core: category, confidence (0.65)
+    Classifier-->>Core: category, confidence (0.95)
     deactivate Classifier
 
     alt confidence < threshold (0.9)
-        Core->>Kafka: llm-classifier-request (txId, correlationId)
+        Core->>Kafka: llm-classifier-request (txId, requestId)
         activate Kafka
         Kafka-->>Reasoning: consume request
         deactivate Kafka
         
         activate Reasoning
-        Reasoning->>DB: get user context (transactions)
-        activate DB
-        DB-->>Reasoning: user history
-        deactivate DB
+       
         Reasoning->>LLM: call LLM with prompt
         activate LLM
         LLM-->>Reasoning: LLM response (category, confidence)
         deactivate LLM
-        Reasoning->>Kafka: llm-classifier-response (category, correlationId)
+        Reasoning->>Kafka: llm-classifier-response (category, requestId)
         activate Kafka
         Kafka-->>Core: consume response
         deactivate Kafka
@@ -202,15 +199,15 @@ sequenceDiagram
     deactivate Kafka
 
     activate Coach
-    Coach->>DB: get transactions (last 30 days)
+    Coach->>DB: get transactions (last n days)
     activate DB
     DB-->>Coach: transaction list
     deactivate DB
 
     Coach->>Coach: call tools (spending_by_category, monthly_delta, etc.)
-    Coach->>LLM: call LLM with tools result
+    Coach->>LLM: call LLM with a prompt enriched by the tools result
     activate LLM
-    LLM-->>Coach: recommendation text + structured data
+    LLM-->>Coach: recommendation
     deactivate LLM
 
     Coach->>DB: save recommendation (advice_data JSONB)
@@ -218,7 +215,7 @@ sequenceDiagram
     DB-->>Coach: saved
     deactivate DB
 
-    Coach->>Kafka: coach-response (userId, recommendationId)
+    Coach->>Kafka: coach-response (userId, requestId)
     deactivate Coach
 
     activate Kafka
@@ -226,10 +223,7 @@ sequenceDiagram
     deactivate Kafka
 
     activate Notify
-    Notify->>DB: get recommendation by id
-    activate DB
-    DB-->>Notify: advice_data
-    deactivate DB
+    
     Notify->>TG: send message (Telegram API)
     deactivate Notify
 
@@ -251,14 +245,15 @@ stateDiagram-v2
     NEW --> ML_CLASSIFYING : raw-transaction consumed
 
     ML_CLASSIFYING --> CLASSIFIED : confidence >= threshold\n(save category=ML)
-    ML_CLASSIFYING --> WAITING_LLM_RESULT : confidence < threshold\n(publish llm-classifier-request)
+    ML_CLASSIFYING --> LLM_CLASSIFYING : confidence < threshold\n(publish llm-classifier-request)
     ML_CLASSIFYING --> RETRYING : ML error
 
-    WAITING_LLM_RESULT --> CLASSIFIED : llm-classifier-response received\n(save category=LLM)
-    WAITING_LLM_RESULT --> RETRYING : LLM processing error
-    WAITING_LLM_RESULT --> FAILED : timeout waiting LLM response
+    LLM_CLASSIFYING --> CLASSIFIED : llm-classifier-response received\n(save category=LLM)
+    LLM_CLASSIFYING --> RETRYING : LLM processing error
+    LLM_CLASSIFYING --> FAILED : timeout waiting LLM response
 
     RETRYING --> ML_CLASSIFYING : retry
+    RETRYING --> LLM_CLASSIFYING : retry
     RETRYING --> FAILED : max retries exceeded
 
     CLASSIFIED --> [*]
@@ -269,66 +264,46 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TB
-    subgraph "Docker Host"
-        subgraph "Infrastructure (docker-compose.infrastructure.yml)"
-            Postgres[(Postgres)]
-            Kafka[(Kafka)]
-            Zookeeper[Zookeeper]
-        end
 
-        subgraph "FinSense Services (docker-compose.services.yml)"
-            Core[Core Service]
-            Classifier[Classifier Service]
-            Reasoning[Transaction Classifier Agent]
-            Coach[Financial Coach Agent]
-            Notify[Notify Service]
-        end
+subgraph EXT["External Systems"]
+    User["User (Browser / Client)"]
+    Generator["Transaction Generator"]
+    LLM["LLM Provider<br/>OpenAI / DeepSeek"]
+    TG["Telegram Bot API"]
+end
+
+subgraph HOST["Docker Host"]
+
+    subgraph INF["Infrastructure (docker-compose.infrastructure.yml)"]
+        Postgres[(Postgres :5432)]
+        Kafka[(Kafka :9092)]
+        ZK["Zookeeper"]
+        ZK -. manages .-> Kafka
     end
 
-    subgraph "External Systems"
-        User(User)
-        Generator[Transaction Generator]
-        LLM[LLM Provider<br/>OpenAI / YandexGPT]
-        TG[Telegram Bot API]
+    subgraph SVC["FinSense Services (docker-compose.services.yml)"]
+        Core["Core Service (:8080)"]
+        Classifier["Classifier Service (:8081)"]
+        Reasoning["Transaction Classifier Agent"]
+        Coach["Financial Coach Agent"]
+        Notify["Notify Service"]
     end
+end
 
-    %% Infrastructure connections inside Docker Host
-    Postgres -->|5432/tcp| Core
-    Postgres -->|5432/tcp| Classifier
-    Postgres -->|5432/tcp| Reasoning
-    Postgres -->|5432/tcp| Coach
-    Postgres -->|5432/tcp| Notify
+User -->|"HTTPS :8080"| Core
+Generator -->|"Kafka :9092<br/>raw-transactions"| Kafka
 
-    Kafka -->|9092/tcp| Core
-    Kafka -->|9092/tcp| Reasoning
-    Kafka -->|9092/tcp| Coach
-    Kafka -->|9092/tcp| Notify
+Core -->|"HTTP :8081 /api/classify"| Classifier
 
-    Zookeeper -.->|manages| Kafka
+Core <-->|"Kafka :9092<br/>produce/consume"| Kafka
+Reasoning <-->|"Kafka :9092<br/>consume/produce"| Kafka
+Coach <-->|"Kafka :9092<br/>consume/produce"| Kafka
+Notify -->|"Kafka :9092<br/>consume coach-responses"| Kafka
 
-    %% Connections between FinSense Services
-    Core -->|HTTP /classify| Classifier
-    Core -->|publishes/consumes| Kafka
-    Core -->|JDBC| Postgres
+Core -->|"JDBC :5432<br/>core schema"| Postgres
+Coach -->|"JDBC :5432<br/>recommendations schema"| Postgres
 
-    Classifier -->|JDBC| Postgres
-
-    Reasoning -->|consumes/publishes| Kafka
-    Reasoning -->|HTTPS| LLM
-    Reasoning -->|JDBC| Postgres
-
-    Coach -->|consumes/publishes| Kafka
-    Coach -->|HTTPS| LLM
-    Coach -->|JDBC| Postgres
-
-    Notify -->|consumes coach-responses| Kafka
-    Notify -->|HTTPS| TG
-    Notify -->|JDBC| Postgres
-
-    %% Connections with External Systems
-    User -->|HTTPS 8080| Core
-    Generator -->|publishes raw-transactions| Kafka
-    LLM -->|HTTPS| Reasoning
-    LLM -->|HTTPS| Coach
-    TG -->|HTTPS| Notify
+Reasoning -->|"HTTPS :443"| LLM
+Coach -->|"HTTPS :443"| LLM
+Notify -->|"HTTPS :443<br/>sendMessage"| TG
 ```
