@@ -326,7 +326,15 @@ pyrightconfig.json
 
 # my custom files and dirs
 **/notes.txt
-**/inspiring/
 run.txt
 ai_agent_test
 
+.ai
+**/.vscode/
+**/.gradle/
+**/.kotlin/
+**/.idea/
+**/gradle
+**/gradlew
+**/gradlew.bat
+**/build/

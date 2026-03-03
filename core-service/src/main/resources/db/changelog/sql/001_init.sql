@@ -1,0 +1,55 @@
+CREATE SCHEMA IF NOT EXISTS core;
+CREATE SCHEMA IF NOT EXISTS recommendations;
+
+CREATE TABLE core.users (
+    id UUID PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE core.accounts (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    number VARCHAR(50) NOT NULL UNIQUE,
+    type VARCHAR(50) NOT NULL DEFAULT 'debit',
+    currency VARCHAR(3) NOT NULL DEFAULT 'RUB',
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_accounts_user_id ON core.accounts(user_id);
+
+CREATE TABLE core.transactions (
+    id UUID PRIMARY KEY,
+    account_id UUID NOT NULL REFERENCES core.accounts(id) ON DELETE RESTRICT,
+    user_id UUID NOT NULL REFERENCES core.users(id),
+    amount DECIMAL(19,4) NOT NULL,
+    description TEXT,
+    merchant_name VARCHAR(255),
+    mcc_code VARCHAR(10),
+    transaction_date TIMESTAMP NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+    category VARCHAR(100),
+    classifier_source VARCHAR(10),
+    classifier_confidence REAL,
+    classified_at TIMESTAMP
+);
+
+CREATE INDEX idx_transactions_user_account ON core.transactions(user_id, account_id, transaction_date);
+CREATE INDEX idx_transactions_classifier ON core.transactions(classifier_source, classified_at);
+CREATE INDEX idx_transactions_category ON core.transactions(category);
+CREATE INDEX idx_transactions_status ON core.transactions(status);
+
+CREATE TABLE IF NOT EXISTS recommendations.recommendations (
+id UUID PRIMARY KEY,
+user_id UUID NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+created_at TIMESTAMP NOT NULL DEFAULT now(),
+status TEXT NOT NULL CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED')),
+completed_at TIMESTAMP NULL,
+advice_data JSONB NULL,
+request_params JSONB NULL,
+error TEXT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_recommendations_status ON recommendations.recommendations (status);
+CREATE INDEX IF NOT EXISTS idx_recommendations_user_created ON recommendations.recommendations(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recommendations_advice_gin ON recommendations.recommendations USING GIN (advice_data);

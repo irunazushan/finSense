@@ -1,0 +1,13 @@
+spring:
+  task:
+    scheduling:
+      enabled: false
+  liquibase:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+app:
+  scheduler:
+    coach-cron: "0 0 0 1 * ?"

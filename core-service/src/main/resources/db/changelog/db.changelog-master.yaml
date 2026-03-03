@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-init-core-and-recommendations
+      author: codex
+      changes:
+        - sqlFile:
+            path: sql/001_init.sql
+            relativeToChangelogFile: true

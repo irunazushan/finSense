@@ -47,7 +47,7 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres:15
+    image: postgres:17.9
     container_name: postgres
     environment:
       POSTGRES_DB: finsense

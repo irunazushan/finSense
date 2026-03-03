@@ -1,0 +1,64 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: core-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/finsense}
+    username: ${DB_USER:finsense}
+    password: ${DB_PASSWORD:finsense}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: core
+    open-in-view: false
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: core
+    liquibase-schema: public
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:core-service}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  classifier:
+    url: ${CLASSIFIER_URL:http://classifier:8081}
+    confidence-threshold: ${CLASSIFIER_CONFIDENCE_THRESHOLD:0.9}
+    timeout-ms: ${CLASSIFIER_TIMEOUT_MS:3000}
+  reasoning:
+    history-size: ${REASONING_HISTORY_SIZE:20}
+  scheduler:
+    coach-cron: ${COACH_SCHEDULER_CRON:0 0 2 * * ?}
+  kafka:
+    topics:
+      raw-transactions: ${KAFKA_TOPIC_RAW_TRANSACTIONS:raw-transactions}
+      llm-classifier-requests: ${KAFKA_TOPIC_LLM_CLASSIFIER_REQUESTS:llm-classifier-requests}
+      llm-classifier-responses: ${KAFKA_TOPIC_LLM_CLASSIFIER_RESPONSES:llm-classifier-responses}
+      coach-requests: ${KAFKA_TOPIC_COACH_REQUESTS:coach-requests}
