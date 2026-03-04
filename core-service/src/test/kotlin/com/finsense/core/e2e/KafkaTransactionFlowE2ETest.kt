@@ -5,14 +5,16 @@ import com.finsense.core.dto.kafka.LlmClassifierResponseEvent
 import com.finsense.core.dto.kafka.RawTransactionEvent
 import com.finsense.core.model.TransactionStatus
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.within
 import org.awaitility.kotlin.await
 import org.junit.jupiter.api.Test
-import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.whenever
 import java.math.BigDecimal
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.TimeUnit
 
 class KafkaTransactionFlowE2ETest : BaseE2ETest() {
@@ -25,9 +27,10 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
         dbSeedHelper.insertUser(userId)
         dbSeedHelper.insertAccount(accountId, userId, number = "ACC-${UUID.randomUUID()}")
 
-        `when`(classifierClient.classify(any())).thenReturn(
-            ClassifierResponse(category = "FOOD_AND_DRINKS", confidence = 0.97)
-        )
+
+        doReturn(ClassifierResponse(category = "FOOD_AND_DRINKS", confidence = 0.97))
+            .whenever(classifierClient)
+            .classify(any())
 
         val event = RawTransactionEvent(
             transactionId = transactionId,
@@ -47,6 +50,7 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
             assertThat(row!!["status"]).isEqualTo(TransactionStatus.CLASSIFIED.name)
             assertThat(row["classifier_source"]).isEqualTo("ML")
             assertThat(row["category"]).isEqualTo("FOOD_AND_DRINKS")
+            assertThat((row["classifier_confidence"] as Number).toDouble()).isCloseTo(0.97, within(0.0001))
         }
 
         val llmMessage = kafkaProbeHelper.consumeSingle(
@@ -81,9 +85,10 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
             classifiedAt = Instant.parse("2026-02-09T10:00:01Z")
         )
 
-        `when`(classifierClient.classify(any())).thenReturn(
-            ClassifierResponse(category = "OTHER", confidence = 0.55)
-        )
+        doReturn(ClassifierResponse(category = "OTHER", confidence = 0.55))
+            .whenever(classifierClient)
+            .classify(any())
+
 
         val event = RawTransactionEvent(
             transactionId = transactionId,
@@ -101,7 +106,7 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
             assertThat(row).isNotNull
             assertThat(row!!["status"]).isEqualTo(TransactionStatus.LLM_CLASSIFYING.name)
             assertThat(row["classifier_source"]).isEqualTo("ML")
-            assertThat((row["classifier_confidence"] as Number).toDouble()).isEqualTo(0.55)
+            assertThat((row["classifier_confidence"] as Number).toDouble()).isCloseTo(0.55, within(0.0001))
         }
 
         val llmRequestRecord = kafkaProbeHelper.consumeSingle(
@@ -160,7 +165,7 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
             assertThat(row!!["status"]).isEqualTo(TransactionStatus.CLASSIFIED.name)
             assertThat(row["classifier_source"]).isEqualTo("LLM")
             assertThat(row["category"]).isEqualTo("TRANSPORT")
-            assertThat((row["classifier_confidence"] as Number).toDouble()).isEqualTo(0.93)
+            assertThat((row["classifier_confidence"] as Number).toDouble()).isCloseTo(0.93, within(0.0001))
             assertThat(row["classified_at"]).isNotNull()
         }
     }
@@ -173,9 +178,9 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
         dbSeedHelper.insertUser(userId)
         dbSeedHelper.insertAccount(accountId, userId, number = "ACC-${UUID.randomUUID()}")
 
-        `when`(classifierClient.classify(any())).thenReturn(
-            ClassifierResponse(category = "SHOPPING", confidence = 0.96)
-        )
+        doReturn(ClassifierResponse(category = "SHOPPING", confidence = 0.96))
+            .whenever(classifierClient)
+            .classify(any())
 
         val event = RawTransactionEvent(
             transactionId = transactionId,
