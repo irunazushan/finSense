@@ -1,8 +1,8 @@
 package com.finsense.core.e2e
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.finsense.core.e2e.fixtures.DbSeedHelper
-import com.finsense.core.e2e.fixtures.KafkaProbeHelper
+import com.finsense.core.e2e.utils.DbSeedHelper
+import com.finsense.core.e2e.utils.KafkaProbeHelper
 import com.finsense.core.infrastructure.client.ClassifierClient
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.NewTopic
@@ -12,18 +12,17 @@ import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.containers.PostgreSQLContainer
-import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 
@@ -48,7 +47,7 @@ abstract class BaseE2ETest {
     @Autowired
     protected lateinit var kafkaProbeHelper: KafkaProbeHelper
 
-    @MockBean
+    @MockitoBean
     protected lateinit var classifierClient: ClassifierClient
 
     @BeforeEach
@@ -72,16 +71,24 @@ abstract class BaseE2ETest {
         private const val POSTGRES_IMAGE = "postgres:16-alpine"
         private const val KAFKA_IMAGE = "confluentinc/cp-kafka:7.6.1"
 
-        @Container
         @JvmStatic
-        val postgres: PostgreSQLContainer<*> = PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE))
+        private val postgres: PostgreSQLContainer<*> = PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE))
             .withDatabaseName("finsense")
             .withUsername("finsense")
             .withPassword("finsense")
 
-        @Container
         @JvmStatic
-        val kafka: KafkaContainer = KafkaContainer(DockerImageName.parse(KAFKA_IMAGE))
+        private val kafka: KafkaContainer = KafkaContainer(DockerImageName.parse(KAFKA_IMAGE))
+
+        init {
+            if (!postgres.isRunning) {
+                postgres.start()
+            }
+            if (!kafka.isRunning) {
+                kafka.start()
+            }
+            createTopics()
+        }
 
         @JvmStatic
         @DynamicPropertySource
@@ -99,8 +106,7 @@ abstract class BaseE2ETest {
         }
 
         @JvmStatic
-        @org.junit.jupiter.api.BeforeAll
-        fun createTopics() {
+        private fun createTopics() {
             val props = mapOf("bootstrap.servers" to kafka.bootstrapServers)
             AdminClient.create(props).use { admin ->
                 val requiredTopics = setOf(

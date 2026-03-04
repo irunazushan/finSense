@@ -1,4 +1,4 @@
-package com.finsense.core.e2e.fixtures
+package com.finsense.core.e2e.utils
 
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord

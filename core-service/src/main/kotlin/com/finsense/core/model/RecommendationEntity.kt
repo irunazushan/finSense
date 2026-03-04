@@ -6,6 +6,8 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -30,9 +32,11 @@ class RecommendationEntity(
     var completedAt: Instant? = null,
 
     @Column(name = "advice_data", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     var adviceData: String? = null,
 
     @Column(name = "request_params", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     var requestParams: String? = null,
 
     @Column

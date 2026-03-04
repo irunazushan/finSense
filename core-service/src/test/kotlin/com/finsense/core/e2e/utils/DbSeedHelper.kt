@@ -1,4 +1,4 @@
-package com.finsense.core.e2e.fixtures
+package com.finsense.core.e2e.utils
 
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.ResultSetExtractor

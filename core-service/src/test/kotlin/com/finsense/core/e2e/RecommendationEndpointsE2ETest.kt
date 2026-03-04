@@ -22,7 +22,7 @@ class RecommendationEndpointsE2ETest : BaseE2ETest() {
         val mvcResult = mockMvc.perform(
             post("/api/v1/users/$userId/recommendations")
                 .contentType("application/json")
-                .content("""{"parameters":{"period":"monthly","months":3}}""")
+                .content("""{"parameters":{"periodDays":30,"message": "На какой категорий я мог бы сэкономить больше всего?"}}""")
         )
             .andExpect(status().isAccepted)
             .andExpect(jsonPath("$.status").value("PENDING"))
@@ -60,7 +60,7 @@ class RecommendationEndpointsE2ETest : BaseE2ETest() {
             createdAt = Instant.parse("2026-02-01T00:00:00Z"),
             completedAt = Instant.parse("2026-02-01T00:01:00Z"),
             adviceDataJson = """{"summary":"cut subscriptions"}""",
-            requestParamsJson = """{"period":"monthly"}"""
+            requestParamsJson = """{"periodDays":30}"""
         )
 
         mockMvc.perform(get("/api/v1/recommendations/$recommendationId"))
