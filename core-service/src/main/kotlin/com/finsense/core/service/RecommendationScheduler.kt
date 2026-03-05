@@ -1,5 +1,6 @@
 package com.finsense.core.service
 
+import com.finsense.core.model.RecommendationTrigger
 import com.finsense.core.repository.UserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -23,7 +24,7 @@ class RecommendationScheduler(
             recommendationService.createRecommendationRequest(
                 userId = userId,
                 parameters = null,
-                trigger = "SCHEDULED"
+                trigger = RecommendationTrigger.SCHEDULED
             )
         }
         log.info("Scheduled recommendation requests for {} users", userIds.size)

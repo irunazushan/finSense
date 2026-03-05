@@ -5,7 +5,7 @@ spring:
   application:
     name: core-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/finsense}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/finsense}
     username: ${DB_USER:finsense}
     password: ${DB_PASSWORD:finsense}
     driver-class-name: org.postgresql.Driver

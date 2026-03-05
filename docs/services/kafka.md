@@ -227,14 +227,9 @@ kafka:
 
 1. **Автоматическое создание** включено (`auto.create.topics.enable=true`) для удобства разработки.
 2. При первом запуске выполняется **скрипт инициализации**, который создаёт топики с правильными параметрами (партиции, retention):
-
-```bash
-kafka-topics.sh --create --bootstrap-server localhost:9092 \
-  --topic raw-transactions \
-  --partitions 2 \
-  --replication-factor 1
-```
-
+```path
+ ./scripts/init-kafka-topics.sh
+ ```
 ## Проверка работы
 ```bash
 # Зайти в контейнер

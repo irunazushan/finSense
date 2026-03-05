@@ -1,7 +1,10 @@
 package com.finsense.core.dto.api
 
-import com.fasterxml.jackson.databind.JsonNode
-
 data class CreateRecommendationRequest(
-    val parameters: JsonNode? = null
+    val parameters: RecommendationParametersDto? = null
+)
+
+data class RecommendationParametersDto(
+    val periodDays: Int? = null,
+    val message: String? = null
 )

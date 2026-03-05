@@ -40,10 +40,14 @@ class RecommendationEndpointsE2ETest : BaseE2ETest() {
         ) { it.value().contains(requestId.toString()) }
 
         assertThat(record).isNotNull
-        val payload = objectMapper.readTree(record!!.value())
+        assertThat(record!!.key()).isEqualTo(userId.toString())
+        val payload = objectMapper.readTree(record.value())
         assertThat(payload["requestId"].asText()).isEqualTo(requestId.toString())
         assertThat(payload["userId"].asText()).isEqualTo(userId.toString())
         assertThat(payload["trigger"].asText()).isEqualTo("MANUAL")
+        assertThat(payload["parameters"]["periodDays"].asInt()).isEqualTo(30)
+        assertThat(payload["parameters"]["message"].asText()).isEqualTo("На какой категорий я мог бы сэкономить больше всего?")
+        assertThat(payload["requestedAt"].asText()).isNotBlank()
     }
 
     @Test
@@ -71,6 +75,36 @@ class RecommendationEndpointsE2ETest : BaseE2ETest() {
 
         mockMvc.perform(get("/api/v1/recommendations/${UUID.randomUUID()}"))
             .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `POST recommendations applies defaults when parameters are missing`() {
+        val userId = UUID.randomUUID()
+        val accountId = UUID.randomUUID()
+        dbSeedHelper.insertUser(userId)
+        dbSeedHelper.insertAccount(accountId, userId, number = "ACC-${UUID.randomUUID()}")
+
+        val mvcResult = mockMvc.perform(
+            post("/api/v1/users/$userId/recommendations")
+                .contentType("application/json")
+                .content("{}")
+        )
+            .andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.status").value("PENDING"))
+            .andReturn()
+
+        val requestId = UUID.fromString(objectMapper.readTree(mvcResult.response.contentAsString)["requestId"].asText())
+        val record = kafkaProbeHelper.consumeSingle(
+            topic = "coach-requests",
+            timeout = Duration.ofSeconds(10)
+        ) { it.value().contains(requestId.toString()) }
+
+        assertThat(record).isNotNull
+        assertThat(record!!.key()).isEqualTo(userId.toString())
+        val payload = objectMapper.readTree(record.value())
+        assertThat(payload["trigger"].asText()).isEqualTo("MANUAL")
+        assertThat(payload["parameters"]["periodDays"].asInt()).isEqualTo(30)
+        assertThat(payload["parameters"]["message"].asText()).isEqualTo("Дай общий совет по экономии за выбранный период.")
     }
 
     @Test

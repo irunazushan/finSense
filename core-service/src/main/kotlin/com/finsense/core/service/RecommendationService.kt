@@ -1,14 +1,16 @@
 package com.finsense.core.service
 
-import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.finsense.core.config.AppProperties
+import com.finsense.core.dto.api.RecommendationParametersDto
 import com.finsense.core.dto.api.RecommendationAcceptedResponse
 import com.finsense.core.dto.api.RecommendationResponse
+import com.finsense.core.dto.kafka.CoachRequestParameters
 import com.finsense.core.dto.kafka.CoachRequestEvent
 import com.finsense.core.infrastructure.kafka.KafkaEventPublisher
 import com.finsense.core.model.RecommendationEntity
 import com.finsense.core.model.RecommendationStatus
+import com.finsense.core.model.RecommendationTrigger
 import com.finsense.core.repository.RecommendationRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -24,13 +26,19 @@ class RecommendationService(
     private val objectMapper: ObjectMapper,
     private val appProperties: AppProperties
 ) {
+    companion object {
+        private const val DEFAULT_PERIOD_DAYS = 30
+        private const val DEFAULT_MESSAGE = "Дай общий совет по экономии за выбранный период."
+    }
+
     @Transactional
     fun createRecommendationRequest(
         userId: UUID,
-        parameters: JsonNode?,
-        trigger: String = "MANUAL"
+        parameters: RecommendationParametersDto?,
+        trigger: RecommendationTrigger = RecommendationTrigger.MANUAL
     ): RecommendationAcceptedResponse {
         userBootstrapService.ensureUserAndAccount(userId)
+        val normalizedParameters = normalizeParameters(parameters)
 
         val requestId = UUID.randomUUID()
         val entity = recommendationRepository.save(
@@ -38,25 +46,32 @@ class RecommendationService(
                 id = requestId,
                 userId = userId,
                 status = RecommendationStatus.PENDING,
-                requestParams = parameters?.let { objectMapper.writeValueAsString(it) }
+                requestParams = objectMapper.writeValueAsString(normalizedParameters)
             )
         )
 
         kafkaEventPublisher.publish(
             appProperties.kafka.topics.coachRequests,
-            requestId.toString(),
+            userId.toString(),
             CoachRequestEvent(
                 requestId = requestId,
                 userId = userId,
                 trigger = trigger,
                 requestedAt = Instant.now(),
-                parameters = parameters
+                parameters = normalizedParameters
             )
         )
 
         return RecommendationAcceptedResponse(
             requestId = entity.id,
             status = entity.status
+        )
+    }
+
+    private fun normalizeParameters(parameters: RecommendationParametersDto?): CoachRequestParameters {
+        return CoachRequestParameters(
+            periodDays = parameters?.periodDays ?: DEFAULT_PERIOD_DAYS,
+            message = parameters?.message ?: DEFAULT_MESSAGE
         )
     }
 
