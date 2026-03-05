@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: classifier-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  classification:
+    rules-file: ${CLASSIFIER_RULES_FILE:file:./classifier-rules.yaml}
+    strategy: ${CLASSIFIER_STRATEGY:rule}

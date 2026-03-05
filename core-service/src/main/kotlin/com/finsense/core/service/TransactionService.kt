@@ -63,6 +63,7 @@ class TransactionService(
         try {
             val classifierResponse = classifierClient.classify(
                 ClassifierRequest(
+                    transactionId = transaction.id,
                     amount = transaction.amount,
                     description = transaction.description,
                     merchantName = transaction.merchantName,

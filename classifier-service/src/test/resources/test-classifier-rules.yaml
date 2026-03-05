@@ -1,0 +1,23 @@
+mcc:
+  5812: FOOD_AND_DRINKS
+  4111: TRANSPORT
+
+keywords:
+  - category: FOOD_AND_DRINKS
+    words:
+      - coffee
+      - restaurant
+  - category: TRANSPORT
+    words:
+      - taxi
+      - metro
+  - category: SHOPPING
+    words:
+      - store
+      - market
+
+confidence:
+  mcc_base: 0.95
+  keyword_base: 0.85
+  boost_per_match: 0.05
+  max: 0.99
