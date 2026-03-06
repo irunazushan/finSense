@@ -153,6 +153,22 @@ Core Service:
 http://localhost:8080/actuator/health
 ```
 
+### 4️⃣ Transaction Tester (Streamlit)
+
+Инструмент для генерации тестовых транзакций и публикации в `raw-transactions`:
+
+```bash
+docker compose -f docker-compose.services.yml --profile tester up -d tester
+```
+
+UI:
+
+```
+http://localhost:8501
+```
+
+Локальный запуск и детали: `tools/transaction-tester/README.md`
+
 ---
 
 ## 🔌 REST API (Core Service)
