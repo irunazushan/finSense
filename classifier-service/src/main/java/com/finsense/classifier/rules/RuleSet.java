@@ -12,9 +12,12 @@ public record RuleSet(
 ) {
 
     public record ConfidenceConfig(
-        double mccBase,
+        double mccBaseConfirmed,
+        double mccBaseUnconfirmed,
         double keywordBase,
         double boostPerMatch,
+        double contradictionPenalty,
+        double mccMin,
         double max
     ) {
     }

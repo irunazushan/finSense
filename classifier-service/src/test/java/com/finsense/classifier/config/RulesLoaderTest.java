@@ -23,9 +23,12 @@ class RulesLoaderTest {
               - category: TRANSPORT
                 words: [taxi, metro]
             confidence:
-              mcc_base: 0.95
+              mcc_base_confirmed: 0.95
+              mcc_base_unconfirmed: 0.75
               keyword_base: 0.85
               boost_per_match: 0.05
+              contradiction_penalty: 0.07
+              mcc_min: 0.55
               max: 0.99
             """);
 
@@ -42,9 +45,12 @@ class RulesLoaderTest {
             mcc:
               5812: UNKNOWN_CATEGORY
             confidence:
-              mcc_base: 0.95
+              mcc_base_confirmed: 0.95
+              mcc_base_unconfirmed: 0.75
               keyword_base: 0.85
               boost_per_match: 0.05
+              contradiction_penalty: 0.07
+              mcc_min: 0.55
               max: 0.99
             """);
 
@@ -57,15 +63,18 @@ class RulesLoaderTest {
     void failsOnInvalidConfidenceBounds() throws IOException {
         Path file = writeRules("""
             confidence:
-              mcc_base: 1.1
+              mcc_base_confirmed: 1.1
+              mcc_base_unconfirmed: 0.75
               keyword_base: 0.85
               boost_per_match: 0.05
+              contradiction_penalty: 0.07
+              mcc_min: 0.55
               max: 0.99
             """);
 
         assertThatThrownBy(() -> new RulesLoader(propertiesFor(file), new DefaultResourceLoader(), new TextNormalizer()))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("confidence.mcc_base");
+            .hasMessageContaining("confidence.mcc_base_confirmed");
     }
 
     private Path writeRules(String content) throws IOException {

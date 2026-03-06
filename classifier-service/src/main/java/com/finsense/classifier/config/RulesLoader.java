@@ -67,9 +67,12 @@ public class RulesLoader {
         }
 
         RuleSet.ConfidenceConfig confidence = new RuleSet.ConfidenceConfig(
-            document.confidence.mccBase,
+            document.confidence.mccBaseConfirmed,
+            document.confidence.mccBaseUnconfirmed,
             document.confidence.keywordBase,
             document.confidence.boostPerMatch,
+            document.confidence.contradictionPenalty,
+            document.confidence.mccMin,
             document.confidence.max
         );
 
@@ -137,14 +140,29 @@ public class RulesLoader {
         if (confidence.max < 0.0 || confidence.max > 1.0) {
             throw new IllegalStateException("confidence.max must be in range [0.0, 1.0]");
         }
-        if (confidence.mccBase < 0.0 || confidence.mccBase > confidence.max) {
-            throw new IllegalStateException("confidence.mcc_base must be in range [0.0, max]");
+        if (confidence.mccBaseConfirmed < 0.0 || confidence.mccBaseConfirmed > confidence.max) {
+            throw new IllegalStateException("confidence.mcc_base_confirmed must be in range [0.0, max]");
+        }
+        if (confidence.mccBaseUnconfirmed < 0.0 || confidence.mccBaseUnconfirmed > confidence.max) {
+            throw new IllegalStateException("confidence.mcc_base_unconfirmed must be in range [0.0, max]");
+        }
+        if (confidence.mccBaseUnconfirmed > confidence.mccBaseConfirmed) {
+            throw new IllegalStateException("confidence.mcc_base_unconfirmed must be <= confidence.mcc_base_confirmed");
+        }
+        if (confidence.mccMin < 0.0 || confidence.mccMin > confidence.max) {
+            throw new IllegalStateException("confidence.mcc_min must be in range [0.0, max]");
+        }
+        if (confidence.mccMin > confidence.mccBaseUnconfirmed) {
+            throw new IllegalStateException("confidence.mcc_min must be <= confidence.mcc_base_unconfirmed");
         }
         if (confidence.keywordBase < 0.0 || confidence.keywordBase > confidence.max) {
             throw new IllegalStateException("confidence.keyword_base must be in range [0.0, max]");
         }
         if (confidence.boostPerMatch < 0.0) {
             throw new IllegalStateException("confidence.boost_per_match must be >= 0.0");
+        }
+        if (confidence.contradictionPenalty < 0.0) {
+            throw new IllegalStateException("confidence.contradiction_penalty must be >= 0.0");
         }
     }
 
@@ -160,14 +178,23 @@ public class RulesLoader {
     }
 
     static class ConfidenceDocument {
-        @JsonProperty("mcc_base")
-        public double mccBase;
+        @JsonProperty("mcc_base_confirmed")
+        public double mccBaseConfirmed;
+
+        @JsonProperty("mcc_base_unconfirmed")
+        public double mccBaseUnconfirmed;
 
         @JsonProperty("keyword_base")
         public double keywordBase;
 
         @JsonProperty("boost_per_match")
         public double boostPerMatch;
+
+        @JsonProperty("contradiction_penalty")
+        public double contradictionPenalty;
+
+        @JsonProperty("mcc_min")
+        public double mccMin;
 
         public double max;
     }

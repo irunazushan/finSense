@@ -26,8 +26,15 @@ public class RuleEngine {
 
         if (mccCategory != null) {
             int sameCategoryHits = countKeywordHits(mccCategory, normalizedText);
-            double confidence = cap(ruleSet.confidence().mccBase()
-                + (ruleSet.confidence().boostPerMatch() * sameCategoryHits));
+            int maxOtherCategoryHits = maxOtherCategoryHits(mccCategory, normalizedText);
+            double base = sameCategoryHits > 0
+                ? ruleSet.confidence().mccBaseConfirmed()
+                : ruleSet.confidence().mccBaseUnconfirmed();
+            double confidence = capMcc(
+                base
+                    + (ruleSet.confidence().boostPerMatch() * sameCategoryHits)
+                    - (ruleSet.confidence().contradictionPenalty() * maxOtherCategoryHits)
+            );
             return new ClassificationDecision(input.transactionId(), mccCategory, confidence, RULE_SOURCE);
         }
 
@@ -96,6 +103,21 @@ public class RuleEngine {
 
     private double cap(double value) {
         return Math.min(value, ruleSet.confidence().max());
+    }
+
+    private double capMcc(double value) {
+        return Math.max(ruleSet.confidence().mccMin(), cap(value));
+    }
+
+    private int maxOtherCategoryHits(TransactionCategory selectedCategory, String normalizedText) {
+        int max = 0;
+        for (TransactionCategory category : ruleSet.keywordPriority()) {
+            if (category == selectedCategory) {
+                continue;
+            }
+            max = Math.max(max, countKeywordHits(category, normalizedText));
+        }
+        return max;
     }
 
     private record Candidate(

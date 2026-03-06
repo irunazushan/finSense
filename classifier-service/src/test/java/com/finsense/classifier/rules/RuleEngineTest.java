@@ -27,14 +27,14 @@ class RuleEngineTest {
 
         Map<TransactionCategory, List<String>> keywordRules = new LinkedHashMap<>();
         keywordRules.put(TransactionCategory.FOOD_AND_DRINKS, List.of("coffee", "restaurant"));
-        keywordRules.put(TransactionCategory.TRANSPORT, List.of("taxi", "metro"));
+        keywordRules.put(TransactionCategory.TRANSPORT, List.of("taxi", "metro", "train"));
         keywordRules.put(TransactionCategory.SHOPPING, List.of("store", "market"));
 
         RuleSet ruleSet = new RuleSet(
             mccRules,
             keywordRules,
             List.of(TransactionCategory.FOOD_AND_DRINKS, TransactionCategory.TRANSPORT, TransactionCategory.SHOPPING),
-            new RuleSet.ConfidenceConfig(0.95, 0.85, 0.05, 0.99)
+            new RuleSet.ConfidenceConfig(0.95, 0.75, 0.85, 0.05, 0.07, 0.55, 0.99)
         );
 
         RulesLoader loader = Mockito.mock(RulesLoader.class);
@@ -43,10 +43,31 @@ class RuleEngineTest {
     }
 
     @Test
-    void mccMatchHasPriorityOverKeywords() {
-        ClassificationDecision result = ruleEngine.classify(input("taxi coffee", "5812"));
+    void mccConfirmedBySameCategoryKeywordIncreasesConfidence() {
+        ClassificationDecision result = ruleEngine.classify(input("coffee", "5812"));
         assertThat(result.category()).isEqualTo(TransactionCategory.FOOD_AND_DRINKS);
         assertThat(result.confidence()).isEqualTo(0.99);
+    }
+
+    @Test
+    void mccWithoutTextSupportUsesUnconfirmedBase() {
+        ClassificationDecision result = ruleEngine.classify(input("unknown merchant", "5812"));
+        assertThat(result.category()).isEqualTo(TransactionCategory.FOOD_AND_DRINKS);
+        assertThat(result.confidence()).isEqualTo(0.75);
+    }
+
+    @Test
+    void mccContradictionLowersConfidence() {
+        ClassificationDecision result = ruleEngine.classify(input("taxi metro", "5812"));
+        assertThat(result.category()).isEqualTo(TransactionCategory.FOOD_AND_DRINKS);
+        assertThat(result.confidence()).isEqualTo(0.61);
+    }
+
+    @Test
+    void mccConfidenceHasLowerFloor() {
+        ClassificationDecision result = ruleEngine.classify(input("taxi metro train", "5812"));
+        assertThat(result.category()).isEqualTo(TransactionCategory.FOOD_AND_DRINKS);
+        assertThat(result.confidence()).isEqualTo(0.55);
     }
 
     @Test

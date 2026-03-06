@@ -17,7 +17,10 @@ keywords:
       - market
 
 confidence:
-  mcc_base: 0.95
+  mcc_base_confirmed: 0.95
+  mcc_base_unconfirmed: 0.75
   keyword_base: 0.85
   boost_per_match: 0.05
+  contradiction_penalty: 0.07
+  mcc_min: 0.55
   max: 0.99
