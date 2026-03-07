@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections import Counter
 from decimal import Decimal
+import http.client
+import json
 import time
 from typing import Dict, Iterable, List, Optional, Set
-
-import requests
+from urllib.parse import urlencode, urlparse
 
 from models import (
     ClientTransactionFilters,
@@ -35,32 +36,49 @@ def fetch_user_transactions_page(
     core_base_url: str,
     user_id: str,
     filters: ServerTransactionFilters,
-    session: Optional[requests.Session] = None,
+    session: Optional[object] = None,
     timeout_seconds: int = 10,
 ) -> List[TransactionRecord]:
-    api = _get_session(session)
-    response = api.get(
-        f"{core_base_url.rstrip('/')}/api/v1/users/{user_id}/transactions",
-        params=build_transaction_query_params(filters),
-        timeout=timeout_seconds,
-    )
+    del session  # kept for backward compatibility of call sites
+
+    params = build_transaction_query_params(filters)
+    full_url, request_path, parsed = _build_request_target(core_base_url, user_id, params)
+
     try:
-        response.raise_for_status()
-    except requests.HTTPError as exc:
+        connection = _new_connection(parsed, timeout_seconds)
+        connection.request(
+            "GET",
+            request_path,
+            headers={"Accept": "application/json"},
+        )
+        response = connection.getresponse()
+        status = response.status
+        body_bytes = response.read()
+        connection.close()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Core API request failed: {exc}") from exc
+
+    body_text = body_bytes.decode("utf-8", errors="replace")
+
+    if status >= 400:
         raise RuntimeError(
-            f"Core API error HTTP {response.status_code}: {_response_snippet(response)}"
-        ) from exc
+            f"Core API error HTTP {status}: {_text_snippet(body_text)}"
+        )
 
-    response_text = (response.text or "").strip()
+    response_text = (body_text or "").strip()
     if not response_text:
-        raise RuntimeError(f"Core API returned empty response (HTTP {response.status_code})")
+        raise RuntimeError(
+            "Core API returned empty response "
+            f"(HTTP {status}, page={max(0, filters.page)}, "
+            f"size={max(1, min(200, filters.size))}, url={full_url})"
+        )
 
     try:
-        items = response.json()
+        items = json.loads(response_text)
     except ValueError as exc:
         raise RuntimeError(
-            f"Core API returned non-JSON response (HTTP {response.status_code}): "
-            f"{_response_snippet(response)}"
+            f"Core API returned non-JSON response (HTTP {status}): "
+            f"{_text_snippet(response_text)}"
         ) from exc
 
     if not isinstance(items, list):
@@ -72,14 +90,13 @@ def fetch_user_transactions_all(
     core_base_url: str,
     user_id: str,
     filters: ServerTransactionFilters,
-    session: Optional[requests.Session] = None,
+    session: Optional[object] = None,
     timeout_seconds: int = 10,
     max_pages: int = 2000,
 ) -> List[TransactionRecord]:
     page = max(0, filters.page)
     size = max(1, min(200, filters.size))
     all_records: List[TransactionRecord] = []
-    api = _get_session(session)
 
     for _ in range(max_pages):
         page_filters = ServerTransactionFilters(
@@ -90,13 +107,18 @@ def fetch_user_transactions_all(
             page=page,
             size=size,
         )
-        records = fetch_user_transactions_page(
-            core_base_url=core_base_url,
-            user_id=user_id,
-            filters=page_filters,
-            session=api,
-            timeout_seconds=timeout_seconds,
-        )
+        try:
+            records = fetch_user_transactions_page(
+                core_base_url=core_base_url,
+                user_id=user_id,
+                filters=page_filters,
+                session=session,
+                timeout_seconds=timeout_seconds,
+            )
+        except RuntimeError as exc:
+            if _is_empty_response_error(exc) and page > max(0, filters.page):
+                break
+            raise
         all_records.extend(records)
         if len(records) < size:
             break
@@ -189,14 +211,12 @@ def _fetch_matching_transactions(
     expected_ids: Set[str],
 ) -> Dict[str, TransactionRecord]:
     matched: Dict[str, TransactionRecord] = {}
-    session = requests.Session()
 
     for user_id in user_ids:
         records = fetch_user_transactions_all(
             core_base_url=core_base_url,
             user_id=user_id,
             filters=ServerTransactionFilters(page=0, size=200),
-            session=session,
         )
         for record in records:
             if record.transaction_id in expected_ids:
@@ -222,14 +242,43 @@ def _to_transaction_record(item: object) -> TransactionRecord:
     return TransactionRecord.from_api_dict(item)
 
 
-def _get_session(session: Optional[requests.Session]) -> requests.Session:
-    return session if session is not None else requests.Session()
-
-
-def _response_snippet(response: requests.Response, max_length: int = 200) -> str:
-    text = (response.text or "").strip()
+def _text_snippet(text: str, max_length: int = 200) -> str:
+    text = (text or "").strip()
     if not text:
         return "<empty body>"
     if len(text) > max_length:
         return text[:max_length] + "..."
     return text
+
+
+def _is_empty_response_error(error: RuntimeError) -> bool:
+    return str(error).startswith("Core API returned empty response")
+
+
+def _build_request_target(
+    core_base_url: str,
+    user_id: str,
+    params: Dict[str, object],
+) -> tuple[str, str, object]:
+    parsed = urlparse(core_base_url.rstrip("/"))
+    if parsed.scheme not in ("http", "https"):
+        raise RuntimeError(f"Unsupported core base URL scheme: {parsed.scheme or '<empty>'}")
+    if not parsed.netloc:
+        raise RuntimeError(f"Invalid core base URL: {core_base_url}")
+
+    base_path = parsed.path.rstrip("/")
+    request_path = f"{base_path}/api/v1/users/{user_id}/transactions"
+    query = urlencode(params, doseq=False)
+    if query:
+        request_path = f"{request_path}?{query}"
+    full_url = f"{parsed.scheme}://{parsed.netloc}{request_path}"
+    return full_url, request_path, parsed
+
+
+def _new_connection(parsed_url, timeout_seconds: int):
+    port = parsed_url.port
+    host = parsed_url.hostname
+    if parsed_url.scheme == "https":
+        return http.client.HTTPSConnection(host, port, timeout=timeout_seconds)
+    return http.client.HTTPConnection(host, port, timeout=timeout_seconds)
+

@@ -171,7 +171,7 @@ def test_fetch_user_transactions_page_raises_on_invalid_payload() -> None:
 def test_fetch_user_transactions_page_raises_on_empty_body() -> None:
     session = FakeSession(responses=[FakeResponse([], text="")])
 
-    with pytest.raises(RuntimeError, match="empty response"):
+    with pytest.raises(RuntimeError, match=r"empty response.*page=0.*size=50"):
         fetch_user_transactions_page(
             core_base_url="http://localhost:8080",
             user_id="11111111-1111-1111-1111-111111111111",
@@ -198,3 +198,23 @@ def test_fetch_user_transactions_page_raises_on_non_json_body() -> None:
             filters=ServerTransactionFilters(page=0, size=50),
             session=session,
         )
+
+
+def test_fetch_user_transactions_all_stops_on_empty_body_after_first_page() -> None:
+    session = FakeSession(
+        responses=[
+            FakeResponse([make_record("t1", "10", "A", "1111", "d1"), make_record("t2", "20", "B", "2222", "d2")]),
+            FakeResponse([], text=""),
+        ]
+    )
+
+    records = fetch_user_transactions_all(
+        core_base_url="http://localhost:8080",
+        user_id="11111111-1111-1111-1111-111111111111",
+        filters=ServerTransactionFilters(page=0, size=2),
+        session=session,
+    )
+
+    assert len(records) == 2
+    assert records[0].transaction_id == "t1"
+    assert records[1].transaction_id == "t2"
