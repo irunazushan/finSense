@@ -5,12 +5,25 @@ from decimal import Decimal, InvalidOperation
 import os
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
+from uuid import UUID
 
 import streamlit as st
 
-from core_client import poll_generated_transactions
+from core_client import (
+    aggregate_transactions,
+    apply_client_filters,
+    fetch_user_transactions_all,
+    fetch_user_transactions_page,
+    poll_generated_transactions,
+)
 from generator import generate_transactions, load_category_templates
-from models import GenerationResult, GeneratorConfig
+from models import (
+    ClientTransactionFilters,
+    GenerationResult,
+    GeneratorConfig,
+    ServerTransactionFilters,
+    TransactionRecord,
+)
 from publisher import KafkaTransactionPublisher
 
 
@@ -38,6 +51,15 @@ RUN_MODE_PRESETS = {
     ),
 }
 
+TRANSACTION_STATUSES = [
+    "NEW",
+    "ML_CLASSIFYING",
+    "LLM_CLASSIFYING",
+    "CLASSIFIED",
+    "RETRYING",
+    "FAILED",
+]
+
 
 @st.cache_data(show_spinner=False)
 def cached_templates(rules_path: str, enum_path: str) -> Tuple[Dict[str, object], List[str]]:
@@ -47,37 +69,62 @@ def cached_templates(rules_path: str, enum_path: str) -> Tuple[Dict[str, object]
 def main() -> None:
     st.set_page_config(page_title="Raw Transactions Tester", layout="wide")
     st.title("Raw Transactions Tester")
-    st.caption("Generate and publish synthetic events to Kafka topic `raw-transactions`.")
+    st.caption("Generate raw transactions and browse Core transactions with rich read-only filters.")
+
+    _init_session_state()
 
     try:
         templates, allowed_categories = cached_templates(str(RULES_PATH), str(ENUM_PATH))
-    except Exception as exc:  # noqa: BLE001 - displayed directly to operator
+    except Exception as exc:  # noqa: BLE001
         st.error(f"Failed to load category templates: {exc}")
         return
 
-    (
-        run_mode,
-        bootstrap_servers,
-        core_base_url,
-        topic,
-        users_count,
-        tx_per_user,
-        amount_min,
-        amount_max,
-        start_datetime,
-        end_datetime,
-        random_fill_enabled,
-        ambiguous_ratio,
-        send_interval_ms,
-        seed,
-        verify_after_send,
-        verify_timeout_seconds,
-        verify_poll_interval_seconds,
-    ) = render_runtime_controls()
+    _, bootstrap_servers, core_base_url, topic = render_sidebar_runtime_controls()
+
+    generator_tab, explorer_tab = st.tabs(["Generator", "Transactions Explorer"])
+    with generator_tab:
+        render_generator_tab(
+            templates=templates,
+            allowed_categories=allowed_categories,
+            bootstrap_servers=bootstrap_servers,
+            core_base_url=core_base_url,
+            topic=topic,
+        )
+    with explorer_tab:
+        render_explorer_tab(
+            core_base_url=core_base_url,
+            allowed_categories=allowed_categories,
+        )
+
+
+def render_sidebar_runtime_controls() -> Tuple[str, str, str, str]:
+    with st.sidebar:
+        st.header("Runtime")
+        run_mode = st.selectbox("Run mode", options=list(RUN_MODE_PRESETS.keys()), index=0)
+        preset_bootstrap, preset_core = RUN_MODE_PRESETS[run_mode]
+
+        bootstrap_servers = st.text_input("Kafka bootstrap servers", value=preset_bootstrap)
+        core_base_url = st.text_input("Core base URL", value=preset_core)
+        topic = st.text_input("Kafka topic", value=os.getenv("TESTER_TOPIC", "raw-transactions"))
+
+    return run_mode, bootstrap_servers, core_base_url, topic
+
+
+def render_generator_tab(
+    templates: Dict[str, object],
+    allowed_categories: Sequence[str],
+    bootstrap_servers: str,
+    core_base_url: str,
+    topic: str,
+) -> None:
+    st.subheader("Event Generator")
+    users_count, tx_per_user, target_user_id, amount_min, amount_max, start_datetime, end_datetime, random_fill_enabled, ambiguous_ratio, send_interval_ms, seed, verify_after_send, verify_timeout_seconds, verify_poll_interval_seconds = render_generator_controls()
 
     st.subheader("Category Distribution")
     category_counts = render_category_controls(allowed_categories)
     render_distribution_status(users_count * tx_per_user, category_counts, random_fill_enabled)
+    if target_user_id:
+        st.info("All generated transactions will be sent to the target user UUID.")
 
     preview_col, dry_col, run_col = st.columns(3)
     preview_clicked = preview_col.button("Preview sample", use_container_width=True)
@@ -93,6 +140,7 @@ def main() -> None:
             core_base_url=core_base_url,
             users_count=users_count,
             tx_per_user=tx_per_user,
+            target_user_id=(target_user_id or None),
             amount_min=parse_decimal(amount_min),
             amount_max=parse_decimal(amount_max),
             start_datetime=start_datetime,
@@ -106,11 +154,13 @@ def main() -> None:
             topic=topic,
         )
         generation_result = generate_transactions(config, templates, allowed_categories)
-    except Exception as exc:  # noqa: BLE001 - validation and runtime errors should be visible
+    except Exception as exc:  # noqa: BLE001
         st.error(str(exc))
         return
 
+    remember_generated_user_ids(generation_result.user_ids)
     render_generation_summary(generation_result)
+
     if preview_clicked or dry_run_clicked:
         if dry_run_clicked:
             st.success("Dry run completed. No events were sent to Kafka.")
@@ -129,13 +179,10 @@ def main() -> None:
         )
 
 
-def render_runtime_controls() -> Tuple[
-    str,
-    str,
-    str,
-    str,
+def render_generator_controls() -> Tuple[
     int,
     int,
+    str,
     str,
     str,
     datetime,
@@ -148,26 +195,17 @@ def render_runtime_controls() -> Tuple[
     int,
     int,
 ]:
-    with st.sidebar:
-        st.header("Runtime")
-        run_mode = st.selectbox("Run mode", options=list(RUN_MODE_PRESETS.keys()), index=0)
-        preset_bootstrap, preset_core = RUN_MODE_PRESETS[run_mode]
+    settings_col, verify_col = st.columns(2)
 
-        bootstrap_servers = st.text_input("Kafka bootstrap servers", value=preset_bootstrap)
-        core_base_url = st.text_input("Core base URL", value=preset_core)
-        topic = st.text_input("Kafka topic", value=os.getenv("TESTER_TOPIC", "raw-transactions"))
-
-        st.header("Generation")
+    with settings_col:
         users_count = int(st.number_input("Users count", min_value=1, max_value=10000, value=10, step=1))
-        tx_per_user = int(
-            st.number_input("Transactions per user", min_value=1, max_value=10000, value=100, step=1)
-        )
+        tx_per_user = int(st.number_input("Transactions per user", min_value=1, max_value=10000, value=100, step=1))
+        target_user_id = st.text_input("Target user UUID (optional)", value="")
         amount_min = st.text_input("Min amount", value="50.00")
         amount_max = st.text_input("Max amount", value="5000.00")
-
         default_from = date.today() - timedelta(days=30)
         default_to = date.today()
-        date_range = st.date_input("Date range", value=(default_from, default_to))
+        date_range = st.date_input("Date range", value=(default_from, default_to), key="generator_date_range")
         start_datetime, end_datetime = resolve_date_range(date_range)
 
         random_fill_enabled = st.checkbox("Fill remaining transactions randomly", value=True)
@@ -177,30 +215,20 @@ def render_runtime_controls() -> Tuple[
             if ambiguous_enabled
             else 0.0
         )
-
-        send_interval_ms = int(
-            st.number_input("Send interval (ms)", min_value=0, max_value=60000, value=0, step=10)
-        )
-
+        send_interval_ms = int(st.number_input("Send interval (ms)", min_value=0, max_value=60000, value=0, step=10))
         seed_text = st.text_input("Random seed (optional)", value="")
         seed = int(seed_text) if seed_text.strip() else None
 
-        st.header("Verification")
+    with verify_col:
+        st.markdown("**Post-Send Verification**")
         verify_after_send = st.checkbox("Verify via Core API after send", value=True)
-        verify_timeout_seconds = int(
-            st.number_input("Verify timeout (seconds)", min_value=5, max_value=600, value=60, step=5)
-        )
-        verify_poll_interval_seconds = int(
-            st.number_input("Verify poll interval (seconds)", min_value=1, max_value=60, value=3, step=1)
-        )
+        verify_timeout_seconds = int(st.number_input("Verify timeout (seconds)", min_value=5, max_value=600, value=60, step=5))
+        verify_poll_interval_seconds = int(st.number_input("Verify poll interval (seconds)", min_value=1, max_value=60, value=3, step=1))
 
     return (
-        run_mode,
-        bootstrap_servers,
-        core_base_url,
-        topic,
         users_count,
         tx_per_user,
+        target_user_id.strip(),
         amount_min,
         amount_max,
         start_datetime,
@@ -213,6 +241,136 @@ def render_runtime_controls() -> Tuple[
         verify_timeout_seconds,
         verify_poll_interval_seconds,
     )
+
+
+def render_explorer_tab(core_base_url: str, allowed_categories: Sequence[str]) -> None:
+    st.subheader("Transactions Explorer")
+    generated_users = st.session_state.get("generated_user_ids", [])
+
+    user_col, manual_col = st.columns(2)
+    with user_col:
+        selected_generated_user = st.selectbox(
+            "Generated users from this session",
+            options=[""] + generated_users,
+            index=0,
+            key="explorer_generated_user",
+        )
+    with manual_col:
+        manual_user_input = st.text_input("Manual userId (UUID)", value="", key="explorer_manual_user")
+
+    target_user_id = (manual_user_input.strip() or selected_generated_user).strip()
+    if not target_user_id:
+        st.info("Select a generated user or paste a userId to browse transactions.")
+
+    st.markdown("**Server-side filters (Core API)**")
+    server_col_1, server_col_2, server_col_3 = st.columns(3)
+
+    with server_col_1:
+        category_choice = st.selectbox("Category", options=["Any"] + list(allowed_categories))
+        status_choice = st.selectbox("Status", options=["Any"] + TRANSACTION_STATUSES)
+    with server_col_2:
+        apply_date_range = st.checkbox("Apply date range", value=False)
+        default_from = date.today() - timedelta(days=30)
+        default_to = date.today()
+        explorer_date_range = st.date_input(
+            "Transaction date range",
+            value=(default_from, default_to),
+            key="explorer_date_range",
+        )
+    with server_col_3:
+        load_all_pages = st.checkbox("Load all pages", value=False)
+        page = int(st.number_input("Page", min_value=0, max_value=100000, value=0, step=1))
+        size = int(st.number_input("Page size", min_value=1, max_value=200, value=50, step=1))
+
+    st.markdown("**Client-side filters (applied after fetch)**")
+    client_col_1, client_col_2 = st.columns(2)
+    with client_col_1:
+        amount_min_raw = st.text_input("Min amount (optional)", value="")
+        amount_max_raw = st.text_input("Max amount (optional)", value="")
+        mcc_code = st.text_input("MCC exact (optional)", value="")
+    with client_col_2:
+        merchant_contains = st.text_input("Merchant contains (optional)", value="")
+        description_contains = st.text_input("Description contains (optional)", value="")
+
+    if st.button("Load transactions", type="primary", use_container_width=False):
+        if not target_user_id:
+            st.error("User ID is required.")
+            return
+        if not is_valid_uuid(target_user_id):
+            st.error("Invalid userId format. Expected UUID.")
+            return
+
+        try:
+            from_datetime, to_datetime = (
+                resolve_date_range(explorer_date_range) if apply_date_range else (None, None)
+            )
+            server_filters = ServerTransactionFilters(
+                category=None if category_choice == "Any" else category_choice,
+                status=None if status_choice == "Any" else status_choice,
+                from_datetime=from_datetime,
+                to_datetime=to_datetime,
+                page=page,
+                size=size,
+            )
+
+            if load_all_pages:
+                records = fetch_user_transactions_all(
+                    core_base_url=core_base_url,
+                    user_id=target_user_id,
+                    filters=server_filters,
+                )
+            else:
+                records = fetch_user_transactions_page(
+                    core_base_url=core_base_url,
+                    user_id=target_user_id,
+                    filters=server_filters,
+                )
+
+            st.session_state["explorer_records"] = records
+            st.session_state["explorer_last_user"] = target_user_id
+        except Exception as exc:  # noqa: BLE001
+            st.error(f"Failed to load transactions: {exc}")
+            return
+
+    records: List[TransactionRecord] = st.session_state.get("explorer_records", [])
+    if not records:
+        st.info("No transactions loaded yet.")
+        return
+
+    try:
+        client_filters = ClientTransactionFilters(
+            amount_min=parse_decimal_optional(amount_min_raw),
+            amount_max=parse_decimal_optional(amount_max_raw),
+            merchant_contains=merchant_contains or None,
+            mcc_code=mcc_code or None,
+            description_contains=description_contains or None,
+        )
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+
+    filtered_records = apply_client_filters(records, client_filters)
+    status_counts, category_counts = aggregate_transactions(filtered_records)
+
+    metrics = st.columns(3)
+    metrics[0].metric("Fetched", len(records))
+    metrics[1].metric("After client filters", len(filtered_records))
+    metrics[2].metric("Current user", st.session_state.get("explorer_last_user", "-"))
+
+    status_rows = [{"status": status, "count": count} for status, count in sorted(status_counts.items())]
+    category_rows = [{"category": category, "count": count} for category, count in sorted(category_counts.items())]
+
+    agg_col_1, agg_col_2 = st.columns(2)
+    with agg_col_1:
+        st.write("Status aggregates")
+        st.dataframe(status_rows, use_container_width=True)
+    with agg_col_2:
+        st.write("Category aggregates")
+        st.dataframe(category_rows, use_container_width=True)
+
+    st.write("Filtered transactions")
+    rows = [record.to_row() for record in filtered_records]
+    st.dataframe(rows, use_container_width=True)
 
 
 def render_category_controls(allowed_categories: Sequence[str]) -> Dict[str, int]:
@@ -262,10 +420,7 @@ def render_generation_summary(result: GenerationResult) -> None:
     summary_cols[2].metric("Ambiguous events", result.ambiguous_count)
     summary_cols[3].metric("Distinct categories", len(result.category_totals))
 
-    category_rows = [
-        {"category": category, "count": count}
-        for category, count in sorted(result.category_totals.items(), key=lambda item: item[0])
-    ]
+    category_rows = [{"category": category, "count": count} for category, count in sorted(result.category_totals.items())]
     st.write("Category totals:")
     st.dataframe(category_rows, use_container_width=True)
 
@@ -308,11 +463,11 @@ def run_publish(result: GenerationResult, config: GeneratorConfig):
             send_interval_ms=config.send_interval_ms,
             progress_callback=update_progress,
         )
-        publisher.close()
     except Exception as exc:  # noqa: BLE001
-        publisher.close()
         st.error(f"Publishing failed: {exc}")
         return None
+    finally:
+        publisher.close()
 
     st.success(
         f"Publish complete: {publish_result.total_sent}/{publish_result.total_attempted} sent "
@@ -373,6 +528,13 @@ def parse_decimal(raw: str) -> Decimal:
     return value
 
 
+def parse_decimal_optional(raw: str) -> Decimal | None:
+    raw_value = (raw or "").strip()
+    if not raw_value:
+        return None
+    return parse_decimal(raw_value)
+
+
 def resolve_date_range(raw_value) -> Tuple[datetime, datetime]:
     if isinstance(raw_value, tuple) and len(raw_value) == 2:
         start_date, end_date = raw_value
@@ -388,6 +550,34 @@ def resolve_date_range(raw_value) -> Tuple[datetime, datetime]:
     return start_datetime, end_datetime
 
 
+def remember_generated_user_ids(user_ids: Sequence[str]) -> None:
+    existing = st.session_state.get("generated_user_ids", [])
+    combined = existing + list(user_ids)
+    unique: List[str] = []
+    seen: set[str] = set()
+    for user_id in combined:
+        if user_id not in seen:
+            unique.append(user_id)
+            seen.add(user_id)
+    st.session_state["generated_user_ids"] = unique
+
+
+def is_valid_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _init_session_state() -> None:
+    if "generated_user_ids" not in st.session_state:
+        st.session_state["generated_user_ids"] = []
+    if "explorer_records" not in st.session_state:
+        st.session_state["explorer_records"] = []
+    if "explorer_last_user" not in st.session_state:
+        st.session_state["explorer_last_user"] = "-"
+
+
 if __name__ == "__main__":
     main()
-

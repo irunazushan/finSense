@@ -19,6 +19,7 @@ class GeneratorConfig:
     core_base_url: str
     users_count: int
     tx_per_user: int
+    target_user_id: Optional[str]
     amount_min: Decimal
     amount_max: Decimal
     start_datetime: datetime
@@ -67,3 +68,77 @@ class VerificationSummary:
     category_counts: Dict[str, int]
     missing_transaction_ids: List[str]
 
+
+@dataclass(frozen=True)
+class TransactionRecord:
+    transaction_id: str
+    user_id: str
+    account_id: str
+    amount: Decimal
+    description: Optional[str]
+    merchant_name: Optional[str]
+    mcc_code: Optional[str]
+    transaction_date: str
+    status: str
+    category: Optional[str]
+    classifier_source: Optional[str]
+    classifier_confidence: Optional[float]
+    classified_at: Optional[str]
+
+    @staticmethod
+    def from_api_dict(item: Dict[str, Any]) -> "TransactionRecord":
+        return TransactionRecord(
+            transaction_id=str(item.get("transactionId") or ""),
+            user_id=str(item.get("userId") or ""),
+            account_id=str(item.get("accountId") or ""),
+            amount=Decimal(str(item.get("amount") or "0")),
+            description=item.get("description"),
+            merchant_name=item.get("merchantName"),
+            mcc_code=item.get("mccCode"),
+            transaction_date=str(item.get("transactionDate") or ""),
+            status=str(item.get("status") or "UNKNOWN"),
+            category=item.get("category"),
+            classifier_source=item.get("classifierSource"),
+            classifier_confidence=(
+                float(item["classifierConfidence"])
+                if item.get("classifierConfidence") is not None
+                else None
+            ),
+            classified_at=item.get("classifiedAt"),
+        )
+
+    def to_row(self) -> Dict[str, Any]:
+        return {
+            "transactionId": self.transaction_id,
+            "userId": self.user_id,
+            "accountId": self.account_id,
+            "amount": float(self.amount),
+            "description": self.description,
+            "merchantName": self.merchant_name,
+            "mccCode": self.mcc_code,
+            "transactionDate": self.transaction_date,
+            "status": self.status,
+            "category": self.category,
+            "classifierSource": self.classifier_source,
+            "classifierConfidence": self.classifier_confidence,
+            "classifiedAt": self.classified_at,
+        }
+
+
+@dataclass(frozen=True)
+class ServerTransactionFilters:
+    category: Optional[str] = None
+    status: Optional[str] = None
+    from_datetime: Optional[datetime] = None
+    to_datetime: Optional[datetime] = None
+    page: int = 0
+    size: int = 50
+
+
+@dataclass(frozen=True)
+class ClientTransactionFilters:
+    amount_min: Optional[Decimal] = None
+    amount_max: Optional[Decimal] = None
+    merchant_contains: Optional[str] = None
+    mcc_code: Optional[str] = None
+    description_contains: Optional[str] = None

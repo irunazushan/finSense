@@ -7,6 +7,7 @@ from pathlib import Path
 import random
 import re
 import uuid
+from uuid import UUID
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import yaml
@@ -101,31 +102,34 @@ def generate_transactions(
         rng=rng,
     )
 
-    user_ids = [str(uuid.uuid4()) for _ in range(config.users_count)]
+    if config.target_user_id:
+        user_ids = [config.target_user_id]
+    else:
+        user_ids = [str(uuid.uuid4()) for _ in range(config.users_count)]
 
     transactions: List[GeneratedTransaction] = []
     category_totals: Counter[str] = Counter()
     ambiguous_count = 0
 
-    category_cursor = 0
-    for user_id in user_ids:
-        for _ in range(config.tx_per_user):
-            category = category_plan[category_cursor]
-            category_cursor += 1
+    for index, category in enumerate(category_plan):
+        if config.target_user_id:
+            user_id = user_ids[0]
+        else:
+            user_id = user_ids[index // config.tx_per_user]
 
-            is_ambiguous = config.ambiguous_ratio > 0 and rng.random() < config.ambiguous_ratio
-            transaction = _build_transaction(
-                user_id=user_id,
-                category=category,
-                template=templates.get(category, CategoryTemplate(category=category)),
-                is_ambiguous=is_ambiguous,
-                config=config,
-                rng=rng,
-            )
-            transactions.append(transaction)
-            category_totals[category] += 1
-            if is_ambiguous:
-                ambiguous_count += 1
+        is_ambiguous = config.ambiguous_ratio > 0 and rng.random() < config.ambiguous_ratio
+        transaction = _build_transaction(
+            user_id=user_id,
+            category=category,
+            template=templates.get(category, CategoryTemplate(category=category)),
+            is_ambiguous=is_ambiguous,
+            config=config,
+            rng=rng,
+        )
+        transactions.append(transaction)
+        category_totals[category] += 1
+        if is_ambiguous:
+            ambiguous_count += 1
 
     return GenerationResult(
         user_ids=user_ids,
@@ -170,6 +174,11 @@ def _validate_config(config: GeneratorConfig, allowed_categories: Sequence[str])
         raise ValueError("send_interval_ms must be greater than or equal to 0")
     if config.ambiguous_ratio < 0 or config.ambiguous_ratio > 1:
         raise ValueError("ambiguous_ratio must be in range [0.0, 1.0]")
+    if config.target_user_id:
+        try:
+            UUID(config.target_user_id)
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError("target_user_id must be a valid UUID") from exc
     if not allowed_categories:
         raise ValueError("No categories available from rules/enum")
 
@@ -294,4 +303,3 @@ def _to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
-

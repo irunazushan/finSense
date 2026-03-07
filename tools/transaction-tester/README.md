@@ -9,13 +9,27 @@ Streamlit tool for generating synthetic transactions and publishing them to Kafk
 - Configure category mix with:
   - explicit per-category counts
   - optional random fill for remaining volume
+- Optional target user UUID in Generator:
+  - all generated events are sent to this exact `userId`
 - Optional ambiguous low-signal events to exercise ML to LLM fallback path.
 - Optional post-send verification through Core API:
   - `GET /api/v1/users/{userId}/transactions`
   - aggregated status and category summary
+- Transactions Explorer (read-only):
+  - choose generated user IDs from current session or paste manual user UUID
+  - server-side filters: `category`, `status`, `from`, `to`, `page`, `size`, load-all-pages
+  - client-side filters: amount range, merchant contains, MCC exact, description contains
+  - status/category aggregates on filtered result set
 - Works in both runtimes:
   - host (`localhost:29092`, `http://localhost:8080`)
   - Docker network (`kafka:9092`, `http://core:8080`)
+
+## Explorer Notes
+
+- Explorer is read-only and does not mutate transactions.
+- "Load all pages" iterates through Core pages (`size` up to 200) until the last page.
+- Client-side filters are applied after server fetch and shown in the filtered table/aggregates.
+- If Core returns empty/non-JSON/error body, explorer shows a descriptive API error message.
 
 ## Local Run
 
@@ -42,4 +56,3 @@ Open: `http://localhost:8501`
 ```bash
 python -m pytest tools/transaction-tester/tests -q
 ```
-
