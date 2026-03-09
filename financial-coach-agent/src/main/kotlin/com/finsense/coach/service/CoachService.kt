@@ -86,14 +86,13 @@ class CoachService(
             return
         }
 
-        val promptForLog = buildPromptForLog(event, analytics)
+        val promptForLog = buildPromptForLog(event)
         val llmResult = runCatchingWithBackoff(3) {
             llmService.generateAdvice(
                 requestId = event.requestId,
                 userId = event.userId,
                 periodDays = periodDays,
-                userMessage = userMessage,
-                analyticsSnapshot = analytics
+                userMessage = userMessage
             )
         }
 
@@ -258,14 +257,13 @@ class CoachService(
         return Result.failure(lastFailure ?: IllegalStateException("Unknown LLM failure"))
     }
 
-    private fun buildPromptForLog(event: CoachRequestEvent, analytics: AnalyticsSnapshot): String {
+    private fun buildPromptForLog(event: CoachRequestEvent): String {
         return objectMapper.writeValueAsString(
             mapOf(
                 "requestId" to event.requestId,
                 "userId" to event.userId,
                 "periodDays" to event.parameters.periodDays,
-                "message" to event.parameters.message,
-                "tools" to analytics
+                "message" to event.parameters.message
             )
         )
     }

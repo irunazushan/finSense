@@ -56,7 +56,7 @@ abstract class BaseE2ETest {
                 tokens = 12,
                 latencyMs = 10
             )
-        ).`when`(llmService).generateAdvice(any(), any(), anyInt(), any(), any())
+        ).`when`(llmService).generateAdvice(any(), any(), anyInt(), any())
     }
 
     companion object {

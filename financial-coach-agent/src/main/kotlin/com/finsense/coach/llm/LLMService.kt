@@ -1,7 +1,6 @@
 package com.finsense.coach.llm
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.finsense.coach.analytics.AnalyticsSnapshot
 import com.finsense.coach.config.AppProperties
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
@@ -24,6 +23,7 @@ data class LlmAdviceResult(
 class LLMService(
     private val appProperties: AppProperties,
     private val objectMapper: ObjectMapper,
+    private val coachTools: CoachTools,
     chatClientBuilderProvider: ObjectProvider<ChatClient.Builder>
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -35,8 +35,7 @@ class LLMService(
         requestId: UUID,
         userId: UUID,
         periodDays: Int,
-        userMessage: String,
-        analyticsSnapshot: AnalyticsSnapshot
+        userMessage: String
     ): LlmAdviceResult {
         val client = chatClient
             ?: throw IllegalStateException("ChatClient is not configured; check Spring AI setup")
@@ -45,14 +44,14 @@ class LLMService(
             requestId = requestId,
             userId = userId,
             periodDays = periodDays,
-            userMessage = userMessage,
-            analyticsSnapshot = analyticsSnapshot
+            userMessage = userMessage
         )
 
         val started = System.currentTimeMillis()
         val text = CompletableFuture.supplyAsync {
             client.prompt()
                 .user(prompt)
+                .tools(coachTools)
                 .call()
                 .content()
                 ?.trim()
@@ -83,13 +82,16 @@ class LLMService(
         requestId: UUID,
         userId: UUID,
         periodDays: Int,
-        userMessage: String,
-        analyticsSnapshot: AnalyticsSnapshot
+        userMessage: String
     ): String {
-        val toolsJson = objectMapper.writeValueAsString(analyticsSnapshot)
         return """
-            Ты финансовый коуч. Дай короткий, практичный совет на русском языке.
-            Не выдумывай факты, используй только агрегаты tools_json.
+            Ты финансовый коуч. Работай в режиме tool-calling.
+            Перед ответом вызови доступные tools для userId и periodDays:
+            - getSpendingByCategory
+            - getMonthlyDelta
+            - getTopMerchants
+            - detectSpikes
+            Не выдумывай факты, используй данные только из результатов tool-вызовов.
             Ответ строго в JSON-объекте формата:
             {"summary":"<1-2 предложения>","advice":"<конкретные действия>"}
             
@@ -98,7 +100,6 @@ class LLMService(
             periodDays: $periodDays
             userMessage: $userMessage
             generatedAt: ${Instant.now()}
-            tools_json: $toolsJson
         """.trimIndent()
     }
 

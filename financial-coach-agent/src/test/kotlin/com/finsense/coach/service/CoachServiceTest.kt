@@ -102,8 +102,7 @@ class CoachServiceTest {
                 eq(event.requestId),
                 eq(event.userId),
                 eq(30),
-                eq(event.parameters.message),
-                eq(analytics)
+                eq(event.parameters.message)
             )
         ).thenReturn(
             LlmAdviceResult(
@@ -143,7 +142,7 @@ class CoachServiceTest {
 
         assertThat(recommendation.status).isEqualTo(RecommendationStatus.COMPLETED)
         assertThat(recommendation.adviceData).contains("fallbackUsed")
-        verify(llmService, never()).generateAdvice(any(), any(), anyInt(), any(), any())
+        verify(llmService, never()).generateAdvice(any(), any(), anyInt(), any())
         val responseCaptor = argumentCaptor<CoachResponseEvent>()
         verify(responseProducer).publish(responseCaptor.capture())
         assertThat(responseCaptor.firstValue.status).isEqualTo("COMPLETED")
@@ -197,8 +196,7 @@ class CoachServiceTest {
                 eq(event.requestId),
                 eq(event.userId),
                 eq(30),
-                eq(event.parameters.message),
-                eq(analytics)
+                eq(event.parameters.message)
             )
         ).thenThrow(RuntimeException("network timeout"))
 
@@ -206,7 +204,7 @@ class CoachServiceTest {
 
         assertThat(recommendation.status).isEqualTo(RecommendationStatus.FAILED)
         assertThat(recommendation.error).contains("LLM processing failed")
-        verify(llmService, times(3)).generateAdvice(any(), any(), anyInt(), any(), any())
+        verify(llmService, times(3)).generateAdvice(any(), any(), anyInt(), any())
         val responseCaptor = argumentCaptor<CoachResponseEvent>()
         verify(responseProducer).publish(responseCaptor.capture())
         assertThat(responseCaptor.firstValue.status).isEqualTo("FAILED")
