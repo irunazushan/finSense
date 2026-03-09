@@ -1,0 +1,15 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  kafka:
+    consumer:
+      auto-offset-reset: earliest
+
+app:
+  llm:
+    api-key: ""

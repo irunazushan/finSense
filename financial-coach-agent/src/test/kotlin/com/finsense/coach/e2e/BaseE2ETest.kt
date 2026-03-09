@@ -1,45 +1,39 @@
-package com.finsense.core.e2e
+package com.finsense.coach.e2e
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.finsense.core.e2e.utils.DbSeedHelper
-import com.finsense.core.e2e.utils.KafkaProbeHelper
-import com.finsense.core.infrastructure.client.ClassifierClient
+import com.finsense.coach.e2e.utils.DbSeedHelper
+import com.finsense.coach.e2e.utils.KafkaProbeHelper
+import com.finsense.coach.llm.LLMService
+import com.finsense.coach.llm.LlmAdviceResult
+import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.NewTopic
-import org.assertj.core.api.Assertions.assertThat
-import org.awaitility.kotlin.await
 import org.junit.jupiter.api.BeforeEach
+import org.mockito.ArgumentMatchers.anyInt
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
-import org.springframework.test.web.servlet.MockMvc
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
-import java.time.Duration
-import java.util.*
 import java.util.concurrent.TimeUnit
 
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureMockMvc
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("e2e")
 abstract class BaseE2ETest {
 
     @Autowired
-    protected lateinit var mockMvc: MockMvc
+    protected lateinit var kafkaTemplate: KafkaTemplate<String, String>
 
     @Autowired
     protected lateinit var objectMapper: ObjectMapper
-
-    @Autowired
-    protected lateinit var kafkaTemplate: KafkaTemplate<String, String>
 
     @Autowired
     protected lateinit var dbSeedHelper: DbSeedHelper
@@ -48,23 +42,21 @@ abstract class BaseE2ETest {
     protected lateinit var kafkaProbeHelper: KafkaProbeHelper
 
     @MockitoBean
-    protected lateinit var classifierClient: ClassifierClient
+    protected lateinit var llmService: LLMService
 
     @BeforeEach
-    fun cleanDatabase() {
+    fun cleanDb() {
         dbSeedHelper.truncateAll()
-    }
-
-    protected fun awaitTransactionStatus(
-        transactionId: UUID,
-        expectedStatus: String,
-        timeout: Duration = Duration.ofSeconds(10)
-    ) {
-        await.atMost(timeout.toSeconds(), TimeUnit.SECONDS).untilAsserted {
-            val row = dbSeedHelper.transactionRow(transactionId)
-            assertThat(row).isNotNull
-            assertThat(row!!["status"]).isEqualTo(expectedStatus)
-        }
+        doReturn(true).`when`(llmService).isConfigured()
+        doReturn(
+            LlmAdviceResult(
+                summary = "mock-summary",
+                advice = "mock-advice",
+                rawText = """{"summary":"mock-summary","advice":"mock-advice"}""",
+                tokens = 12,
+                latencyMs = 10
+            )
+        ).`when`(llmService).generateAdvice(any(), any(), anyInt(), any(), any())
     }
 
     companion object {
@@ -97,32 +89,23 @@ abstract class BaseE2ETest {
             registry.add("DB_USER", postgres::getUsername)
             registry.add("DB_PASSWORD", postgres::getPassword)
             registry.add("KAFKA_BOOTSTRAP_SERVERS", kafka::getBootstrapServers)
-            registry.add("spring.task.scheduling.enabled") { "false" }
-            registry.add("app.scheduler.coach-cron") { "0 0 0 1 * ?" }
-            registry.add("app.kafka.topics.raw-transactions") { "raw-transactions" }
-            registry.add("app.kafka.topics.llm-classifier-responses") { "llm-classifier-responses" }
-            registry.add("app.kafka.topics.llm-classifier-requests") { "llm-classifier-requests" }
             registry.add("app.kafka.topics.coach-requests") { "coach-requests" }
+            registry.add("app.kafka.topics.coach-responses") { "coach-responses" }
+            registry.add("LLM_API_KEY") { "test-key-for-disabled-llm" }
         }
 
         @JvmStatic
         private fun createTopics() {
             val props = mapOf("bootstrap.servers" to kafka.bootstrapServers)
             AdminClient.create(props).use { admin ->
-                val requiredTopics = setOf(
-                    "raw-transactions",
-                    "llm-classifier-responses",
-                    "llm-classifier-requests",
-                    "coach-requests"
-                )
+                val requiredTopics = setOf("coach-requests", "coach-responses")
                 val existing = admin.listTopics().names().get(10, TimeUnit.SECONDS)
                 val toCreate = requiredTopics.minus(existing).map {
                     NewTopic(it, 1, 1.toShort())
                 }
-                if (toCreate.isEmpty()) {
-                    return
+                if (toCreate.isNotEmpty()) {
+                    admin.createTopics(toCreate).all().get(10, TimeUnit.SECONDS)
                 }
-                admin.createTopics(toCreate).all().get(10, TimeUnit.SECONDS)
             }
         }
     }

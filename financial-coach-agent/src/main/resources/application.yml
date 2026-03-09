@@ -1,0 +1,74 @@
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+  application:
+    name: financial-coach-agent
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/finsense}
+    username: ${DB_USER:finsense}
+    password: ${DB_PASSWORD:finsense}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      read-only: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:coach-agent-group}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  ai:
+    openai:
+      api-key: ${SPRING_AI_OPENAI_API_KEY:test-key-for-disabled-llm}
+      base-url: ${LLM_API_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${LLM_MODEL:deepseek-chat}
+          temperature: ${LLM_TEMPERATURE:0.3}
+          max-tokens: ${LLM_MAX_TOKENS:300}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  llm:
+    provider: deepseek
+    api-url: ${LLM_API_URL:https://api.deepseek.com/v1/chat/completions}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:deepseek-chat}
+    max-tokens: ${LLM_MAX_TOKENS:300}
+    temperature: ${LLM_TEMPERATURE:0.3}
+    timeout-seconds: ${LLM_TIMEOUT_SECONDS:15}
+  analytics:
+    top-merchants-limit: ${ANALYTICS_TOP_MERCHANTS_LIMIT:5}
+  kafka:
+    topics:
+      coach-requests: ${KAFKA_TOPIC_COACH_REQUESTS:coach-requests}
+      coach-responses: ${KAFKA_TOPIC_COACH_RESPONSES:coach-responses}
+  logging:
+    llm-logs-dir: ${LLM_LOGS_DIR:/var/log/finsense/coach-llm}

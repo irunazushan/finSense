@@ -338,3 +338,4 @@ ai_agent_test
 **/gradlew.bat
 **/build/
 **/.gradle-user
+**/bin/
