@@ -2,6 +2,8 @@ server:
   port: ${SERVER_PORT:8083}
 
 spring:
+  main:
+    web-application-type: none
   autoconfigure:
     exclude:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
@@ -57,12 +59,6 @@ management:
 
 app:
   llm:
-    provider: deepseek
-    api-url: ${LLM_API_URL:https://api.deepseek.com/v1/chat/completions}
-    api-key: ${LLM_API_KEY:}
-    model: ${LLM_MODEL:deepseek-chat}
-    max-tokens: ${LLM_MAX_TOKENS:300}
-    temperature: ${LLM_TEMPERATURE:0.3}
     timeout-seconds: ${LLM_TIMEOUT_SECONDS:15}
   analytics:
     top-merchants-limit: ${ANALYTICS_TOP_MERCHANTS_LIMIT:5}

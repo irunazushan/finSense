@@ -1,10 +1,10 @@
 package com.finsense.coach.e2e
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.finsense.coach.dto.llm.LlmAdviceResult
 import com.finsense.coach.e2e.utils.DbSeedHelper
 import com.finsense.coach.e2e.utils.KafkaProbeHelper
-import com.finsense.coach.llm.LLMService
-import com.finsense.coach.llm.LlmAdviceResult
+import com.finsense.coach.service.LLMService
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
 import org.apache.kafka.clients.admin.AdminClient
@@ -48,6 +48,8 @@ abstract class BaseE2ETest {
     fun cleanDb() {
         dbSeedHelper.truncateAll()
         doReturn(true).`when`(llmService).isConfigured()
+        doReturn("deepseek-chat").`when`(llmService).modelName()
+        doReturn("openai-compatible").`when`(llmService).providerName()
         doReturn(
             LlmAdviceResult(
                 summary = "mock-summary",

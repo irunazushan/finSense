@@ -1,9 +1,9 @@
-package com.finsense.coach.llm
+package com.finsense.coach.util
 
-import com.finsense.coach.analytics.CategoryDelta
-import com.finsense.coach.analytics.CategorySpending
-import com.finsense.coach.analytics.MerchantStat
-import com.finsense.coach.analytics.SpikeInfo
+import com.finsense.coach.model.CategoryDelta
+import com.finsense.coach.model.CategorySpending
+import com.finsense.coach.model.MerchantStat
+import com.finsense.coach.model.SpikeInfo
 import com.finsense.coach.config.AppProperties
 import com.finsense.coach.repository.TransactionAnalyticsRepository
 import org.springframework.ai.tool.annotation.Tool

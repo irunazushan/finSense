@@ -1,6 +1,7 @@
-package com.finsense.coach.analytics
+package com.finsense.coach.service
 
 import com.finsense.coach.config.AppProperties
+import com.finsense.coach.model.AnalyticsSnapshot
 import com.finsense.coach.repository.TransactionAnalyticsRepository
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -8,7 +9,7 @@ import java.time.Instant
 import java.util.UUID
 
 @Component
-class TransactionAnalyzer(
+class TransactionAnalyzerService(
     private val transactionAnalyticsRepository: TransactionAnalyticsRepository,
     private val appProperties: AppProperties
 ) {

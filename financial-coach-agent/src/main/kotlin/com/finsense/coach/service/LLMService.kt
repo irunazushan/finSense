@@ -1,23 +1,18 @@
-package com.finsense.coach.llm
+package com.finsense.coach.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.finsense.coach.config.AppProperties
+import com.finsense.coach.dto.llm.LlmAdviceResult
+import com.finsense.coach.util.CoachTools
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
-
-data class LlmAdviceResult(
-    val summary: String,
-    val advice: String,
-    val rawText: String,
-    val tokens: Int?,
-    val latencyMs: Long
-)
 
 @Service
 class LLMService(
@@ -26,10 +21,19 @@ class LLMService(
     private val coachTools: CoachTools,
     chatClientBuilderProvider: ObjectProvider<ChatClient.Builder>
 ) {
+    @Value("\${spring.ai.openai.api-key:}")
+    private lateinit var openAiApiKey: String
+
+    @Value("\${spring.ai.openai.chat.options.model:deepseek-chat}")
+    private lateinit var openAiModel: String
     private val log = LoggerFactory.getLogger(javaClass)
     private val chatClient: ChatClient? = chatClientBuilderProvider.getIfAvailable()?.build()
 
-    fun isConfigured(): Boolean = appProperties.llm.apiKey.isNotBlank()
+    fun isConfigured(): Boolean = openAiApiKey.isNotBlank() && openAiApiKey != "test-key-for-disabled-llm"
+
+    fun modelName(): String = openAiModel
+
+    fun providerName(): String = "openai-compatible"
 
     fun generateAdvice(
         requestId: UUID,
@@ -66,7 +70,7 @@ class LLMService(
             requestId,
             userId,
             latency,
-            appProperties.llm.model
+            openAiModel
         )
 
         return LlmAdviceResult(
@@ -125,6 +129,7 @@ class LLMService(
     }
 
     private fun fallbackAdvice(text: String): String {
-        return text.take(600).ifBlank { "Сократите крупные повторяющиеся расходы и контролируйте категории с наибольшей долей трат." }
+        return text.take(600)
+            .ifBlank { "Сократите крупные повторяющиеся расходы и контролируйте категории с наибольшей долей трат." }
     }
 }

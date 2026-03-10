@@ -1,16 +1,14 @@
 package com.finsense.coach.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.finsense.coach.analytics.AnalyticsSnapshot
-import com.finsense.coach.analytics.TransactionAnalyzer
 import com.finsense.coach.config.AppProperties
 import com.finsense.coach.dto.kafka.CoachRequestEvent
 import com.finsense.coach.dto.kafka.CoachResponseEvent
+import com.finsense.coach.dto.llm.LlmAdviceResult
 import com.finsense.coach.kafka.CoachResponseProducer
-import com.finsense.coach.llm.LLMService
-import com.finsense.coach.llm.LlmAdviceResult
 import com.finsense.coach.logging.LLMLogger
 import com.finsense.coach.logging.LlmLogRecord
+import com.finsense.coach.model.AnalyticsSnapshot
 import com.finsense.coach.model.RecommendationEntity
 import com.finsense.coach.model.RecommendationStatus
 import com.finsense.coach.repository.RecommendationRepository
@@ -18,17 +16,16 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
-import java.util.UUID
 import kotlin.math.pow
+import kotlin.onSuccess
 
 @Service
 class CoachService(
     private val recommendationRepository: RecommendationRepository,
-    private val transactionAnalyzer: TransactionAnalyzer,
+    private val transactionAnalyzer: TransactionAnalyzerService,
     private val llmService: LLMService,
     private val llmLogger: LLMLogger,
     private val responseProducer: CoachResponseProducer,
-    private val appProperties: AppProperties,
     private val objectMapper: ObjectMapper
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -96,13 +93,13 @@ class CoachService(
             )
         }
 
-        llmResult.onSuccess { result ->
+        llmResult.onSuccess { result: LlmAdviceResult ->
             llmLogger.log(
                 LlmLogRecord(
                     timestamp = Instant.now(),
                     requestId = event.requestId,
                     userId = event.userId,
-                    model = appProperties.llm.model,
+                    model = llmService.modelName(),
                     prompt = promptForLog,
                     response = mapOf("message" to result.rawText),
                     tokens = result.tokens,
@@ -126,7 +123,7 @@ class CoachService(
                     timestamp = Instant.now(),
                     requestId = event.requestId,
                     userId = event.userId,
-                    model = appProperties.llm.model,
+                    model = llmService.modelName(),
                     prompt = promptForLog,
                     response = mapOf("message" to ""),
                     tokens = null,
@@ -184,8 +181,8 @@ class CoachService(
                     "spikes" to analytics.spikes
                 ),
                 "llm" to mapOf(
-                    "provider" to appProperties.llm.provider,
-                    "model" to appProperties.llm.model,
+                    "provider" to llmService.providerName(),
+                    "model" to llmService.modelName(),
                     "tokens" to llmTokens,
                     "latencyMs" to llmLatencyMs,
                     "fallbackUsed" to fallbackUsed

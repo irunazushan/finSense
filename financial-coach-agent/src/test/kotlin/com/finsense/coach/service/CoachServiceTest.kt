@@ -3,26 +3,14 @@ package com.finsense.coach.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.finsense.coach.analytics.AnalyticsSnapshot
-import com.finsense.coach.analytics.CategoryDelta
-import com.finsense.coach.analytics.CategorySpending
-import com.finsense.coach.analytics.MerchantStat
-import com.finsense.coach.analytics.SpikeInfo
-import com.finsense.coach.analytics.TransactionAnalyzer
-import com.finsense.coach.config.AppProperties
-import com.finsense.coach.config.KafkaProperties
-import com.finsense.coach.config.LlmProperties
-import com.finsense.coach.config.LoggingProperties
-import com.finsense.coach.config.TopicProperties
+import com.finsense.coach.config.*
 import com.finsense.coach.dto.kafka.CoachRequestEvent
 import com.finsense.coach.dto.kafka.CoachRequestParameters
 import com.finsense.coach.dto.kafka.CoachResponseEvent
+import com.finsense.coach.dto.llm.LlmAdviceResult
 import com.finsense.coach.kafka.CoachResponseProducer
-import com.finsense.coach.llm.LLMService
-import com.finsense.coach.llm.LlmAdviceResult
 import com.finsense.coach.logging.LLMLogger
-import com.finsense.coach.model.RecommendationEntity
-import com.finsense.coach.model.RecommendationStatus
+import com.finsense.coach.model.*
 import com.finsense.coach.repository.RecommendationRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -31,19 +19,11 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.never
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.*
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Optional
-import java.util.UUID
+import java.util.*
 
 @ExtendWith(MockitoExtension::class)
 class CoachServiceTest {
@@ -52,7 +32,7 @@ class CoachServiceTest {
     private lateinit var recommendationRepository: RecommendationRepository
 
     @Mock
-    private lateinit var transactionAnalyzer: TransactionAnalyzer
+    private lateinit var transactionAnalyzer: TransactionAnalyzerService
 
     @Mock
     private lateinit var llmService: LLMService
@@ -73,7 +53,7 @@ class CoachServiceTest {
     @BeforeEach
     fun setUp() {
         appProperties = AppProperties(
-            llm = LlmProperties(apiKey = "test-key"),
+            llm = LlmProperties(timeoutSeconds = 15),
             kafka = KafkaProperties(TopicProperties("coach-requests", "coach-responses")),
             logging = LoggingProperties("/tmp")
         )
@@ -83,7 +63,6 @@ class CoachServiceTest {
             llmService = llmService,
             llmLogger = llmLogger,
             responseProducer = responseProducer,
-            appProperties = appProperties,
             objectMapper = objectMapper
         )
     }
@@ -97,6 +76,8 @@ class CoachServiceTest {
         whenever(recommendationRepository.findById(event.requestId)).thenReturn(Optional.of(recommendation))
         whenever(transactionAnalyzer.analyze(eq(event.userId), eq(30), any())).thenReturn(analytics)
         whenever(llmService.isConfigured()).thenReturn(true)
+        whenever(llmService.modelName()).thenReturn("deepseek-chat")
+        whenever(llmService.providerName()).thenReturn("openai-compatible")
         whenever(
             llmService.generateAdvice(
                 eq(event.requestId),
@@ -191,6 +172,7 @@ class CoachServiceTest {
         whenever(recommendationRepository.findById(event.requestId)).thenReturn(Optional.of(recommendation))
         whenever(transactionAnalyzer.analyze(eq(event.userId), eq(30), any())).thenReturn(analytics)
         whenever(llmService.isConfigured()).thenReturn(true)
+        whenever(llmService.modelName()).thenReturn("deepseek-chat")
         whenever(
             llmService.generateAdvice(
                 eq(event.requestId),

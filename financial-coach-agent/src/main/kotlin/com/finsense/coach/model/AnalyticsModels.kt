@@ -1,4 +1,4 @@
-package com.finsense.coach.analytics
+package com.finsense.coach.model
 
 import java.math.BigDecimal
 import java.time.LocalDate

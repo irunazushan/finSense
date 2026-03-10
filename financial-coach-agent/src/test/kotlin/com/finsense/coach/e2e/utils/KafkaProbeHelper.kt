@@ -11,10 +11,11 @@ import java.util.Properties
 import java.util.UUID
 
 @Component
-class KafkaProbeHelper(
+class KafkaProbeHelper {
+
     @Value("\${spring.kafka.bootstrap-servers}")
-    private val bootstrapServers: String
-) {
+    private lateinit var bootstrapServers: String
+
     fun consumeSingle(
         topic: String,
         timeout: Duration,

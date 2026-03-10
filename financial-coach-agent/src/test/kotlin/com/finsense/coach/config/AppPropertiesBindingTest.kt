@@ -11,12 +11,6 @@ class AppPropertiesBindingTest {
     private val contextRunner = ApplicationContextRunner()
         .withUserConfiguration(TestConfig::class.java)
         .withPropertyValues(
-            "app.llm.provider=deepseek",
-            "app.llm.api-url=https://api.deepseek.com/v1/chat/completions",
-            "app.llm.api-key=abc123",
-            "app.llm.model=deepseek-chat",
-            "app.llm.max-tokens=512",
-            "app.llm.temperature=0.2",
             "app.llm.timeout-seconds=20",
             "app.analytics.top-merchants-limit=7",
             "app.kafka.topics.coach-requests=coach-requests",
@@ -28,9 +22,7 @@ class AppPropertiesBindingTest {
     fun `binds app properties`() {
         contextRunner.run { context ->
             val props = context.getBean(AppProperties::class.java)
-            assertThat(props.llm.provider).isEqualTo("deepseek")
-            assertThat(props.llm.apiKey).isEqualTo("abc123")
-            assertThat(props.llm.maxTokens).isEqualTo(512)
+            assertThat(props.llm.timeoutSeconds).isEqualTo(20)
             assertThat(props.analytics.topMerchantsLimit).isEqualTo(7)
             assertThat(props.kafka.topics.coachResponses).isEqualTo("coach-responses")
             assertThat(props.logging.llmLogsDir).isEqualTo("/tmp/coach")

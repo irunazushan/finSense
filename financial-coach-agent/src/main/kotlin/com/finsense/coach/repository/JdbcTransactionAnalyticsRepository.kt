@@ -1,9 +1,9 @@
 package com.finsense.coach.repository
 
-import com.finsense.coach.analytics.CategoryDelta
-import com.finsense.coach.analytics.CategorySpending
-import com.finsense.coach.analytics.MerchantStat
-import com.finsense.coach.analytics.SpikeInfo
+import com.finsense.coach.model.CategoryDelta
+import com.finsense.coach.model.CategorySpending
+import com.finsense.coach.model.MerchantStat
+import com.finsense.coach.model.SpikeInfo
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository

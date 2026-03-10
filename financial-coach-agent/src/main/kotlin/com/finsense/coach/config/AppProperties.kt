@@ -11,12 +11,6 @@ data class AppProperties(
 )
 
 data class LlmProperties(
-    val provider: String = "deepseek",
-    val apiUrl: String = "https://api.deepseek.com/v1/chat/completions",
-    val apiKey: String = "",
-    val model: String = "deepseek-chat",
-    val maxTokens: Int = 300,
-    val temperature: Double = 0.3,
     val timeoutSeconds: Long = 15
 )
 
