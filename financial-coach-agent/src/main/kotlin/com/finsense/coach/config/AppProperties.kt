@@ -28,5 +28,5 @@ data class TopicProperties(
 )
 
 data class LoggingProperties(
-    val llmLogsDir: String = "/var/log/finsense/coach-llm"
+    val llmLogsDir: String = "./logs/coach-llm"
 )

@@ -3,13 +3,11 @@ package com.finsense.coach.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.finsense.coach.config.*
 import com.finsense.coach.dto.kafka.CoachRequestEvent
 import com.finsense.coach.dto.kafka.CoachRequestParameters
 import com.finsense.coach.dto.kafka.CoachResponseEvent
 import com.finsense.coach.dto.llm.LlmAdviceResult
 import com.finsense.coach.kafka.CoachResponseProducer
-import com.finsense.coach.logging.LLMLogger
 import com.finsense.coach.model.*
 import com.finsense.coach.repository.RecommendationRepository
 import org.assertj.core.api.Assertions.assertThat
@@ -38,33 +36,25 @@ class CoachServiceTest {
     private lateinit var llmService: LLMService
 
     @Mock
-    private lateinit var llmLogger: LLMLogger
-
-    @Mock
     private lateinit var responseProducer: CoachResponseProducer
 
     private val objectMapper = ObjectMapper()
         .registerModule(JavaTimeModule())
         .registerModule(KotlinModule.Builder().build())
-    private lateinit var appProperties: AppProperties
 
     private lateinit var coachService: CoachService
 
     @BeforeEach
     fun setUp() {
-        appProperties = AppProperties(
-            llm = LlmProperties(timeoutSeconds = 15),
-            kafka = KafkaProperties(TopicProperties("coach-requests", "coach-responses")),
-            logging = LoggingProperties("/tmp")
-        )
         coachService = CoachService(
             recommendationRepository = recommendationRepository,
             transactionAnalyzer = transactionAnalyzer,
             llmService = llmService,
-            llmLogger = llmLogger,
             responseProducer = responseProducer,
             objectMapper = objectMapper
         )
+//        whenever(llmService.modelName()).thenReturn("deepseek-chat")
+//        whenever(llmService.providerName()).thenReturn("openai-compatible")
     }
 
     @Test
@@ -76,7 +66,7 @@ class CoachServiceTest {
         whenever(recommendationRepository.findById(event.requestId)).thenReturn(Optional.of(recommendation))
         whenever(transactionAnalyzer.analyze(eq(event.userId), eq(30), any())).thenReturn(analytics)
         whenever(llmService.isConfigured()).thenReturn(true)
-        whenever(llmService.modelName()).thenReturn("deepseek-chat")
+//        whenever(llmService.modelName()).thenReturn("deepseek-chat")
         whenever(llmService.providerName()).thenReturn("openai-compatible")
         whenever(
             llmService.generateAdvice(
@@ -90,7 +80,8 @@ class CoachServiceTest {
                 summary = "summary",
                 advice = "advice",
                 rawText = """{"summary":"summary","advice":"advice"}""",
-                tokens = 123,
+                usedModel = "deepseek-chat-real",
+                totalTokens = 123,
                 latencyMs = 50
             )
         )
@@ -107,6 +98,9 @@ class CoachServiceTest {
         assertThat(responseCaptor.firstValue.status).isEqualTo("COMPLETED")
         assertThat(responseCaptor.firstValue.summary).isEqualTo("summary")
         assertThat(responseCaptor.firstValue.advice).isEqualTo("advice")
+        val adviceJson = objectMapper.readTree(recommendation.adviceData)
+        assertThat(adviceJson["llm"]["model"].asText()).isEqualTo("deepseek-chat-real")
+        assertThat(adviceJson["llm"]["totalTokens"].asInt()).isEqualTo(123)
     }
 
     @Test
@@ -172,7 +166,7 @@ class CoachServiceTest {
         whenever(recommendationRepository.findById(event.requestId)).thenReturn(Optional.of(recommendation))
         whenever(transactionAnalyzer.analyze(eq(event.userId), eq(30), any())).thenReturn(analytics)
         whenever(llmService.isConfigured()).thenReturn(true)
-        whenever(llmService.modelName()).thenReturn("deepseek-chat")
+//        whenever(llmService.modelName()).thenReturn("deepseek-chat")
         whenever(
             llmService.generateAdvice(
                 eq(event.requestId),

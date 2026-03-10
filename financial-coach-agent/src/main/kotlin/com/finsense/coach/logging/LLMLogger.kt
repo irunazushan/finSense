@@ -1,8 +1,11 @@
 package com.finsense.coach.logging
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.finsense.coach.config.AppProperties
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 
@@ -10,10 +13,12 @@ data class LlmLogRecord(
     val timestamp: Instant,
     val requestId: UUID,
     val userId: UUID,
-    val model: String,
-    val prompt: String,
-    val response: Map<String, Any?>,
-    val tokens: Int?,
+    val configuredModel: String,
+    val usedModel: String,
+    val systemPrompt: String,
+    val userPrompt: String,
+    val response: Any?,
+    val totalTokens: Int?,
     val latencyMs: Long,
     val success: Boolean,
     val error: String? = null
@@ -21,11 +26,31 @@ data class LlmLogRecord(
 
 @Component
 class LLMLogger(
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val appProperties: AppProperties
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val llmAuditLog = LoggerFactory.getLogger("com.finsense.coach.logging.llm-audit")
 
     fun log(record: LlmLogRecord) {
-        llmAuditLog.info(objectMapper.writeValueAsString(record))
+        ensureLogDirectory()
+        runCatching {
+            llmAuditLog.info(objectMapper.writeValueAsString(record))
+        }.onFailure { ex ->
+            log.warn(
+                "Failed to write LLM audit record requestId={} userId={}: {}",
+                record.requestId,
+                record.userId,
+                ex.message
+            )
+        }
+    }
+
+    private fun ensureLogDirectory() {
+        val path = Paths.get(appProperties.logging.llmLogsDir)
+        runCatching { Files.createDirectories(path) }
+            .onFailure { ex ->
+                log.warn("Failed to create LLM log directory {}: {}", path.toAbsolutePath(), ex.message)
+            }
     }
 }

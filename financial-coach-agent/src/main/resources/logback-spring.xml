@@ -1,5 +1,5 @@
 <configuration>
-    <property name="LLM_LOG_DIR" value="${app.logging.llm-logs-dir:-/var/log/finsense/coach-llm}"/>
+    <property name="LLM_LOG_DIR" value="${app.logging.llm-logs-dir:-./logs/coach-llm}"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

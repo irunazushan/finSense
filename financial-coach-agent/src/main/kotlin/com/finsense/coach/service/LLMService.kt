@@ -3,13 +3,14 @@ package com.finsense.coach.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.finsense.coach.config.AppProperties
 import com.finsense.coach.dto.llm.LlmAdviceResult
+import com.finsense.coach.logging.LLMLogger
+import com.finsense.coach.logging.LlmLogRecord
 import com.finsense.coach.util.CoachTools
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-import java.time.Instant
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -19,6 +20,7 @@ class LLMService(
     private val appProperties: AppProperties,
     private val objectMapper: ObjectMapper,
     private val coachTools: CoachTools,
+    private val llmLogger: LLMLogger,
     chatClientBuilderProvider: ObjectProvider<ChatClient.Builder>
 ) {
     @Value("\${spring.ai.openai.api-key:}")
@@ -44,67 +46,129 @@ class LLMService(
         val client = chatClient
             ?: throw IllegalStateException("ChatClient is not configured; check Spring AI setup")
 
-        val prompt = buildPrompt(
+        val started = System.currentTimeMillis()
+        val systemPrompt = buildSystemPrompt()
+        val userPrompt = buildUserPrompt(
             requestId = requestId,
             userId = userId,
             periodDays = periodDays,
             userMessage = userMessage
         )
 
-        val started = System.currentTimeMillis()
-        val text = CompletableFuture.supplyAsync {
-            client.prompt()
-                .user(prompt)
-                .tools(coachTools)
-                .call()
-                .content()
-                ?.trim()
-                .orEmpty()
-        }.orTimeout(appProperties.llm.timeoutSeconds, TimeUnit.SECONDS)
-            .join()
-        val latency = System.currentTimeMillis() - started
+        return try {
+            val chatResponse = CompletableFuture.supplyAsync {
+                client.prompt()
+                    .system(systemPrompt)
+                    .user(userPrompt)
+                    .tools(coachTools)
+                    .call()
+                    .chatResponse()
+                    ?: throw IllegalStateException("LLM returned empty ChatResponse")
+            }.orTimeout(appProperties.llm.timeoutSeconds, TimeUnit.SECONDS)
+                .join()
 
-        val parsed = parseAdvice(text)
-        log.info(
-            "LLM completed requestId={} userId={} latencyMs={} configuredModel={}",
-            requestId,
-            userId,
-            latency,
-            openAiModel
-        )
+            val latency = System.currentTimeMillis() - started
+            val rawText = chatResponse.result?.output?.text?.trim().orEmpty()
+            val usedModel = chatResponse.metadata?.model?.takeIf { it.isNotBlank() } ?: openAiModel
+            val totalTokens = extractTotalTokens(chatResponse)
 
-        return LlmAdviceResult(
-            summary = parsed.first,
-            advice = parsed.second,
-            rawText = text,
-            tokens = null,
-            latencyMs = latency
-        )
+            // Audit full provider response first, parse later.
+            llmLogger.log(
+                LlmLogRecord(
+                    timestamp = java.time.Instant.now(),
+                    requestId = requestId,
+                    userId = userId,
+                    configuredModel = openAiModel,
+                    usedModel = usedModel,
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    response = chatResponse,
+                    totalTokens = totalTokens,
+                    latencyMs = latency,
+                    success = true
+                )
+            )
+
+            val parsed = parseAdvice(rawText)
+            log.info(
+                "LLM completed requestId={} userId={} latencyMs={} configuredModel={} usedModel={} totalTokens={}",
+                requestId,
+                userId,
+                latency,
+                openAiModel,
+                usedModel,
+                totalTokens
+            )
+
+            LlmAdviceResult(
+                summary = parsed.first,
+                advice = parsed.second,
+                rawText = rawText,
+                usedModel = usedModel,
+                totalTokens = totalTokens,
+                latencyMs = latency
+            )
+        } catch (ex: Exception) {
+            val latency = System.currentTimeMillis() - started
+            llmLogger.log(
+                LlmLogRecord(
+                    timestamp = java.time.Instant.now(),
+                    requestId = requestId,
+                    userId = userId,
+                    configuredModel = openAiModel,
+                    usedModel = openAiModel,
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    response = null,
+                    totalTokens = null,
+                    latencyMs = latency,
+                    success = false,
+                    error = ex.message
+                )
+            )
+            throw ex
+        }
     }
 
-    private fun buildPrompt(
+    private fun buildSystemPrompt(): String {
+        return """
+            Ты финансовый коуч.
+            Работай в режиме tool-calling: сначала вызывай доступные tools для фактов, потом формируй ответ только по их результатам.
+            Нельзя придумывать данные, которых нет в ответах tools.
+            Верни строго один JSON-объект и ничего больше.
+            Обязательный формат:
+            {"summary":"...","advice":"..."}
+            Запрещено:
+            - markdown
+            - тройные кавычки и code fences
+            - любой текст до JSON и после JSON.
+        """.trimIndent()
+    }
+
+    private fun buildUserPrompt(
         requestId: UUID,
         userId: UUID,
         periodDays: Int,
         userMessage: String
     ): String {
         return """
-            Ты финансовый коуч. Работай в режиме tool-calling.
-            Перед ответом вызови доступные tools для userId и periodDays:
-            - getSpendingByCategory
-            - getMonthlyDelta
-            - getTopMerchants
-            - detectSpikes
-            Не выдумывай факты, используй данные только из результатов tool-вызовов.
-            Ответ строго в JSON-объекте формата:
-            {"summary":"<1-2 предложения>","advice":"<конкретные действия>"}
-            
             requestId: $requestId
             userId: $userId
             periodDays: $periodDays
             userMessage: $userMessage
-            generatedAt: ${Instant.now()}
+            Сначала получи факты из tools по userId и periodDays, затем верни JSON с summary и advice.
         """.trimIndent()
+    }
+
+    private fun extractTotalTokens(chatResponse: org.springframework.ai.chat.model.ChatResponse): Int? {
+        val usage = chatResponse.metadata?.usage ?: return null
+        val nativeUsage = usage.nativeUsage
+        val hasUsageData = when (nativeUsage) {
+            null -> false
+            is Map<*, *> -> nativeUsage.isNotEmpty()
+            else -> true
+        }
+        return if (hasUsageData) usage.totalTokens else null
     }
 
     private fun parseAdvice(raw: String): Pair<String, String> {

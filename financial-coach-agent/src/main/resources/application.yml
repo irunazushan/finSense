@@ -59,7 +59,7 @@ management:
 
 app:
   llm:
-    timeout-seconds: ${LLM_TIMEOUT_SECONDS:15}
+    timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
   analytics:
     top-merchants-limit: ${ANALYTICS_TOP_MERCHANTS_LIMIT:5}
   kafka:
@@ -67,4 +67,4 @@ app:
       coach-requests: ${KAFKA_TOPIC_COACH_REQUESTS:coach-requests}
       coach-responses: ${KAFKA_TOPIC_COACH_RESPONSES:coach-responses}
   logging:
-    llm-logs-dir: ${LLM_LOGS_DIR:/var/log/finsense/coach-llm}
+    llm-logs-dir: ${LLM_LOGS_DIR:./logs/coach-llm}

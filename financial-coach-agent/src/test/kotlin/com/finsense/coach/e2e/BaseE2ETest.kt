@@ -55,7 +55,8 @@ abstract class BaseE2ETest {
                 summary = "mock-summary",
                 advice = "mock-advice",
                 rawText = """{"summary":"mock-summary","advice":"mock-advice"}""",
-                tokens = 12,
+                usedModel = "deepseek-chat",
+                totalTokens = 12,
                 latencyMs = 10
             )
         ).`when`(llmService).generateAdvice(any(), any(), anyInt(), any())

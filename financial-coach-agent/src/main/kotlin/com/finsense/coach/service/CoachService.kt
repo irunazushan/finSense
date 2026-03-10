@@ -1,13 +1,10 @@
 package com.finsense.coach.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.finsense.coach.config.AppProperties
 import com.finsense.coach.dto.kafka.CoachRequestEvent
 import com.finsense.coach.dto.kafka.CoachResponseEvent
 import com.finsense.coach.dto.llm.LlmAdviceResult
 import com.finsense.coach.kafka.CoachResponseProducer
-import com.finsense.coach.logging.LLMLogger
-import com.finsense.coach.logging.LlmLogRecord
 import com.finsense.coach.model.AnalyticsSnapshot
 import com.finsense.coach.model.RecommendationEntity
 import com.finsense.coach.model.RecommendationStatus
@@ -17,14 +14,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import kotlin.math.pow
-import kotlin.onSuccess
 
 @Service
 class CoachService(
     private val recommendationRepository: RecommendationRepository,
     private val transactionAnalyzer: TransactionAnalyzerService,
     private val llmService: LLMService,
-    private val llmLogger: LLMLogger,
     private val responseProducer: CoachResponseProducer,
     private val objectMapper: ObjectMapper
 ) {
@@ -61,7 +56,8 @@ class CoachService(
                 summary = summary,
                 advice = advice,
                 analytics = analytics,
-                llmTokens = null,
+                usedModel = llmService.modelName(),
+                llmTotalTokens = null,
                 llmLatencyMs = 0,
                 fallbackUsed = true
             )
@@ -76,14 +72,14 @@ class CoachService(
                 summary = fallback.first,
                 advice = fallback.second,
                 analytics = analytics,
-                llmTokens = null,
+                usedModel = llmService.modelName(),
+                llmTotalTokens = null,
                 llmLatencyMs = 0,
                 fallbackUsed = true
             )
             return
         }
 
-        val promptForLog = buildPromptForLog(event)
         val llmResult = runCatchingWithBackoff(3) {
             llmService.generateAdvice(
                 requestId = event.requestId,
@@ -94,44 +90,18 @@ class CoachService(
         }
 
         llmResult.onSuccess { result: LlmAdviceResult ->
-            llmLogger.log(
-                LlmLogRecord(
-                    timestamp = Instant.now(),
-                    requestId = event.requestId,
-                    userId = event.userId,
-                    model = llmService.modelName(),
-                    prompt = promptForLog,
-                    response = mapOf("message" to result.rawText),
-                    tokens = result.tokens,
-                    latencyMs = result.latencyMs,
-                    success = true
-                )
-            )
             completeRecommendation(
                 recommendation = recommendation,
                 event = event,
                 summary = result.summary,
                 advice = result.advice,
                 analytics = analytics,
-                llmTokens = result.tokens,
+                usedModel = result.usedModel,
+                llmTotalTokens = result.totalTokens,
                 llmLatencyMs = result.latencyMs,
                 fallbackUsed = false
             )
         }.onFailure { ex ->
-            llmLogger.log(
-                LlmLogRecord(
-                    timestamp = Instant.now(),
-                    requestId = event.requestId,
-                    userId = event.userId,
-                    model = llmService.modelName(),
-                    prompt = promptForLog,
-                    response = mapOf("message" to ""),
-                    tokens = null,
-                    latencyMs = 0,
-                    success = false,
-                    error = ex.message
-                )
-            )
             failRecommendation(
                 recommendation = recommendation,
                 event = event,
@@ -162,7 +132,8 @@ class CoachService(
         summary: String,
         advice: String,
         analytics: AnalyticsSnapshot,
-        llmTokens: Int?,
+        usedModel: String,
+        llmTotalTokens: Int?,
         llmLatencyMs: Long,
         fallbackUsed: Boolean
     ) {
@@ -182,8 +153,8 @@ class CoachService(
                 ),
                 "llm" to mapOf(
                     "provider" to llmService.providerName(),
-                    "model" to llmService.modelName(),
-                    "tokens" to llmTokens,
+                    "model" to usedModel,
+                    "totalTokens" to llmTotalTokens,
                     "latencyMs" to llmLatencyMs,
                     "fallbackUsed" to fallbackUsed
                 ),
@@ -252,17 +223,6 @@ class CoachService(
             attempt++
         }
         return Result.failure(lastFailure ?: IllegalStateException("Unknown LLM failure"))
-    }
-
-    private fun buildPromptForLog(event: CoachRequestEvent): String {
-        return objectMapper.writeValueAsString(
-            mapOf(
-                "requestId" to event.requestId,
-                "userId" to event.userId,
-                "periodDays" to event.parameters.periodDays,
-                "message" to event.parameters.message
-            )
-        )
     }
 
     private fun buildDeterministicFallback(analytics: AnalyticsSnapshot, periodDays: Int): Pair<String, String> {

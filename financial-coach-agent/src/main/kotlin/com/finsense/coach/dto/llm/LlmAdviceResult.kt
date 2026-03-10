@@ -4,6 +4,7 @@ data class LlmAdviceResult(
     val summary: String,
     val advice: String,
     val rawText: String,
-    val tokens: Int?,
+    val usedModel: String,
+    val totalTokens: Int?,
     val latencyMs: Long
 )
