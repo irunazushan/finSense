@@ -2,43 +2,43 @@ version: '3.8'
 
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: ${ZOOKEEPER_IMAGE:-confluentinc/cp-zookeeper:7.5.0}
     container_name: zookeeper
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
+      ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
     ports:
-      - "2181:2181"
+      - "${ZOOKEEPER_PORT:-2181}:${ZOOKEEPER_CLIENT_PORT:-2181}"
     networks:
       - finsense-net
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: ${KAFKA_IMAGE:-confluentinc/cp-kafka:7.5.0}
     container_name: kafka
     depends_on:
       - zookeeper
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID:-1}
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:${ZOOKEEPER_CLIENT_PORT:-2181}
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT:-9092},PLAINTEXT_HOST://0.0.0.0:${KAFKA_EXTERNAL_PORT:-29092}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT:-9092},PLAINTEXT_HOST://${KAFKA_ADVERTISED_HOST:-localhost}:${KAFKA_EXTERNAL_PORT:-29092}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS_ENABLE:-true}
     ports:
-      - "9092:9092"
-      - "29092:29092"
+      - "${KAFKA_INTERNAL_PORT:-9092}:${KAFKA_INTERNAL_PORT:-9092}"
+      - "${KAFKA_EXTERNAL_PORT:-29092}:${KAFKA_EXTERNAL_PORT:-29092}"
     networks:
       - finsense-net
     healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:${KAFKA_INTERNAL_PORT:-9092}", "--list"]
       interval: 10s
       timeout: 5s
       retries: 10
 
   kafka-init:
-    image: confluentinc/cp-kafka:7.5.0
+    image: ${KAFKA_IMAGE:-confluentinc/cp-kafka:7.5.0}
     container_name: kafka-init
     depends_on:
       kafka:
@@ -51,20 +51,20 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres:17.9
+    image: ${POSTGRES_IMAGE:-postgres:17.9}
     container_name: postgres
     environment:
-      POSTGRES_DB: finsense
-      POSTGRES_USER: finsense
-      POSTGRES_PASSWORD: finsense
+      POSTGRES_DB: ${POSTGRES_DB:-finsense}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - finsense-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U finsense -d finsense"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${POSTGRES_DB:-finsense}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -72,7 +72,9 @@ services:
 
 networks:
   finsense-net:
+    name: ${FINSENSE_NETWORK_NAME:-finsense_finsense-net}
     driver: bridge
 
 volumes:
   postgres-data:
+    name: ${POSTGRES_VOLUME_NAME:-postgres-data}

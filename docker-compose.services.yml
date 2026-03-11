@@ -5,16 +5,16 @@ services:
       dockerfile: Dockerfile
     container_name: core-service
     ports:
-      - "8080:8080"
+      - "${CORE_SERVER_PORT:-8080}:${CORE_SERVER_PORT:-8080}"
     environment:
-      SERVER_PORT: 8080
-      DB_URL: jdbc:postgresql://postgres:5432/finsense
-      DB_USER: finsense
-      DB_PASSWORD: finsense
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      CLASSIFIER_URL: http://classifier:8081
-      CLASSIFIER_CONFIDENCE_THRESHOLD: 0.9
-      COACH_SCHEDULER_CRON: "0 0 2 * * ?"
+      SERVER_PORT: ${CORE_SERVER_PORT:-8080}
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      CLASSIFIER_URL: ${CLASSIFIER_URL}
+      CLASSIFIER_CONFIDENCE_THRESHOLD: ${CLASSIFIER_CONFIDENCE_THRESHOLD:-0.9}
+      COACH_SCHEDULER_CRON: ${COACH_SCHEDULER_CRON}
     networks:
       - finsense-net
     restart: unless-stopped
@@ -25,9 +25,9 @@ services:
       dockerfile: Dockerfile
     container_name: classifier-service
     ports:
-      - "8081:8081"
+      - "${CLASSIFIER_SERVER_PORT:-8081}:${CLASSIFIER_SERVER_PORT:-8081}"
     environment:
-      SERVER_PORT: 8081
+      SERVER_PORT: ${CLASSIFIER_SERVER_PORT:-8081}
     networks:
       - finsense-net
     restart: unless-stopped
@@ -39,11 +39,11 @@ services:
       dockerfile: Dockerfile
     container_name: transaction-tester
     ports:
-      - "8501:8501"
+      - "${TESTER_SERVER_PORT:-8501}:8501"
     environment:
-      TESTER_BOOTSTRAP_SERVERS: kafka:9092
-      TESTER_CORE_BASE_URL: http://core:8080
-      TESTER_TOPIC: raw-transactions
+      TESTER_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      TESTER_CORE_BASE_URL: ${TESTER_CORE_BASE_URL}
+      TESTER_TOPIC: ${TESTER_TOPIC:-raw-transactions}
     networks:
       - finsense-net
     restart: unless-stopped
@@ -69,33 +69,29 @@ services:
   #       condition: service_healthy
   #   restart: unless-stopped
 
-  # coach:
-  #   build:
-  #     context: ./financial-coach-agent
-  #     dockerfile: Dockerfile
-  #   container_name: coach-agent
-  #   ports:
-  #     - "8083:8083"
-  #   environment:
-  #     SERVER_PORT: 8083
-  #     DB_URL: jdbc:postgresql://postgres:5432/finsense
-  #     DB_USER: finsense
-  #     DB_PASSWORD: finsense
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #     LLM_API_KEY: ${DEEPSEEK_API_KEY}
-  #     SPRING_AI_OPENAI_API_KEY: ${DEEPSEEK_API_KEY:-test-key-for-disabled-llm}
-  #     LLM_MODEL: deepseek-chat
-  #     ANALYTICS_TOP_MERCHANTS_LIMIT: 5
-  #   volumes:
-  #     - ./logs/coach-llm:/var/log/finsense/coach-llm
-  #   networks:
-  #     - finsense-net
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #   restart: unless-stopped
+  coach:
+    build:
+      context: ./financial-coach-agent
+      dockerfile: Dockerfile
+    container_name: coach-agent
+    ports:
+      - "${COACH_SERVER_PORT:-8083}:${COACH_SERVER_PORT:-8083}"
+    environment:
+      SERVER_PORT: ${COACH_SERVER_PORT:-8083}
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      SPRING_AI_OPENAI_API_KEY: ${DEEPSEEK_API_KEY}
+      LLM_API_BASE_URL: ${LLM_API_BASE_URL:-https://api.deepseek.com}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      LLM_LOGS_DIR: ${LLM_LOGS_DIR:-/var/log/finsense/coach-llm}
+      ANALYTICS_TOP_MERCHANTS_LIMIT: ${ANALYTICS_TOP_MERCHANTS_LIMIT:-5}
+    volumes:
+      - ./logs/coach-llm:/var/log/finsense/coach-llm
+    networks:
+      - finsense-net
+    restart: unless-stopped
 
   # notify:
   #   build:
@@ -118,4 +114,4 @@ services:
 networks:
   finsense-net:
     external: true
-    name: finsense_finsense-net
+    name: ${FINSENSE_NETWORK_NAME:-finsense_finsense-net}
