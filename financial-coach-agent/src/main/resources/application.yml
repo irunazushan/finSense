@@ -44,7 +44,7 @@ spring:
       chat:
         options:
           model: ${LLM_MODEL:deepseek-chat}
-          temperature: ${LLM_TEMPERATURE:0.3}
+          temperature: ${LLM_TEMPERATURE:0.1}
           max-tokens: ${LLM_MAX_TOKENS:300}
 
 management:

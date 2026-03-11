@@ -1,0 +1,5 @@
+requestId: {{requestId}}
+userId: {{userId}}
+periodDays: {{periodDays}}
+userMessage: {{userMessage}}
+Сначала получи факты из tools по userId и periodDays, затем верни JSON с summary и advice.

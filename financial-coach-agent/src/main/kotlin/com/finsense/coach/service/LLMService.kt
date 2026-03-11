@@ -20,6 +20,7 @@ class LLMService(
     private val appProperties: AppProperties,
     private val objectMapper: ObjectMapper,
     private val coachTools: CoachTools,
+    private val llmPromptTemplates: LlmPromptTemplates,
     private val llmLogger: LLMLogger,
     chatClientBuilderProvider: ObjectProvider<ChatClient.Builder>
 ) {
@@ -47,8 +48,8 @@ class LLMService(
             ?: throw IllegalStateException("ChatClient is not configured; check Spring AI setup")
 
         val started = System.currentTimeMillis()
-        val systemPrompt = buildSystemPrompt()
-        val userPrompt = buildUserPrompt(
+        val systemPrompt = llmPromptTemplates.systemPrompt()
+        val userPrompt = llmPromptTemplates.renderUserPrompt(
             requestId = requestId,
             userId = userId,
             periodDays = periodDays,
@@ -78,11 +79,12 @@ class LLMService(
                     timestamp = java.time.Instant.now(),
                     requestId = requestId,
                     userId = userId,
-                    configuredModel = openAiModel,
                     usedModel = usedModel,
-                    systemPrompt = systemPrompt,
-                    userPrompt = userPrompt,
-                    response = chatResponse,
+                    configuredModel = openAiModel.takeIf { it != usedModel },
+                    systemTemplateId = LlmPromptTemplates.SYSTEM_TEMPLATE_ID,
+                    userTemplateId = LlmPromptTemplates.USER_TEMPLATE_ID,
+                    renderedUserPrompt = userPrompt,
+                    rawResponse = chatResponse,
                     totalTokens = totalTokens,
                     latencyMs = latency,
                     success = true
@@ -115,11 +117,12 @@ class LLMService(
                     timestamp = java.time.Instant.now(),
                     requestId = requestId,
                     userId = userId,
-                    configuredModel = openAiModel,
                     usedModel = openAiModel,
-                    systemPrompt = systemPrompt,
-                    userPrompt = userPrompt,
-                    response = null,
+                    configuredModel = null,
+                    systemTemplateId = LlmPromptTemplates.SYSTEM_TEMPLATE_ID,
+                    userTemplateId = LlmPromptTemplates.USER_TEMPLATE_ID,
+                    renderedUserPrompt = userPrompt,
+                    rawResponse = null,
                     totalTokens = null,
                     latencyMs = latency,
                     success = false,
@@ -128,36 +131,6 @@ class LLMService(
             )
             throw ex
         }
-    }
-
-    private fun buildSystemPrompt(): String {
-        return """
-            Ты финансовый коуч.
-            Работай в режиме tool-calling: сначала вызывай доступные tools для фактов, потом формируй ответ только по их результатам.
-            Нельзя придумывать данные, которых нет в ответах tools.
-            Верни строго один JSON-объект и ничего больше.
-            Обязательный формат:
-            {"summary":"...","advice":"..."}
-            Запрещено:
-            - markdown
-            - тройные кавычки и code fences
-            - любой текст до JSON и после JSON.
-        """.trimIndent()
-    }
-
-    private fun buildUserPrompt(
-        requestId: UUID,
-        userId: UUID,
-        periodDays: Int,
-        userMessage: String
-    ): String {
-        return """
-            requestId: $requestId
-            userId: $userId
-            periodDays: $periodDays
-            userMessage: $userMessage
-            Сначала получи факты из tools по userId и periodDays, затем верни JSON с summary и advice.
-        """.trimIndent()
     }
 
     private fun extractTotalTokens(chatResponse: org.springframework.ai.chat.model.ChatResponse): Int? {

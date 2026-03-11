@@ -39,11 +39,12 @@ class LLMLoggerTest {
                 timestamp = Instant.now(),
                 requestId = requestId,
                 userId = userId,
-                configuredModel = "deepseek-chat",
                 usedModel = "deepseek-chat",
-                systemPrompt = "system",
-                userPrompt = "user",
-                response = mapOf("message" to "ok"),
+                configuredModel = null,
+                systemTemplateId = "coach-system-v1",
+                userTemplateId = "coach-user-v1",
+                renderedUserPrompt = "requestId: 1",
+                rawResponse = mapOf("message" to "ok"),
                 totalTokens = 15,
                 latencyMs = 45,
                 success = true
@@ -55,8 +56,15 @@ class LLMLoggerTest {
         assertThat(json["requestId"].asText()).isEqualTo(requestId.toString())
         assertThat(json["userId"].asText()).isEqualTo(userId.toString())
         assertThat(json["usedModel"].asText()).isEqualTo("deepseek-chat")
+        assertThat(json["systemTemplateId"].asText()).isEqualTo("coach-system-v1")
+        assertThat(json["userTemplateId"].asText()).isEqualTo("coach-user-v1")
+        assertThat(json["renderedUserPrompt"].asText()).isEqualTo("requestId: 1")
+        assertThat(json["rawResponse"]["message"].asText()).isEqualTo("ok")
         assertThat(json["totalTokens"].asInt()).isEqualTo(15)
         assertThat(json["success"].asBoolean()).isTrue()
+        assertThat(json.has("systemPrompt")).isFalse()
+        assertThat(json.has("userPrompt")).isFalse()
+        assertThat(json.has("response")).isFalse()
     }
 
     @Test
@@ -72,11 +80,12 @@ class LLMLoggerTest {
                 timestamp = Instant.now(),
                 requestId = UUID.randomUUID(),
                 userId = UUID.randomUUID(),
-                configuredModel = "deepseek-chat",
                 usedModel = "deepseek-chat",
-                systemPrompt = "system",
-                userPrompt = "user",
-                response = mapOf("message" to "ok"),
+                configuredModel = null,
+                systemTemplateId = "coach-system-v1",
+                userTemplateId = "coach-user-v1",
+                renderedUserPrompt = "requestId: 1",
+                rawResponse = mapOf("message" to "ok"),
                 totalTokens = 1,
                 latencyMs = 1,
                 success = true

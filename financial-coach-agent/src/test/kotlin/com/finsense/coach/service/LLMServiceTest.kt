@@ -32,6 +32,9 @@ class LLMServiceTest {
     private lateinit var llmLogger: LLMLogger
 
     @Mock
+    private lateinit var llmPromptTemplates: LlmPromptTemplates
+
+    @Mock
     private lateinit var chatClientBuilderProvider: ObjectProvider<ChatClient.Builder>
 
     @Mock
@@ -59,11 +62,21 @@ class LLMServiceTest {
         whenever(requestSpec.user(any<String>())).thenReturn(requestSpec)
         whenever(requestSpec.tools(any())).thenReturn(requestSpec)
         whenever(requestSpec.call()).thenReturn(callSpec)
+        whenever(llmPromptTemplates.systemPrompt()).thenReturn("system prompt")
+        whenever(
+            llmPromptTemplates.renderUserPrompt(
+                any(),
+                any(),
+                any(),
+                any()
+            )
+        ).thenReturn("rendered user prompt")
 
         llmService = LLMService(
             appProperties = AppProperties(llm = LlmProperties(timeoutSeconds = 5)),
             objectMapper = objectMapper,
             coachTools = coachTools,
+            llmPromptTemplates = llmPromptTemplates,
             llmLogger = llmLogger,
             chatClientBuilderProvider = chatClientBuilderProvider
         )
@@ -107,8 +120,10 @@ class LLMServiceTest {
         order.verify(objectMapper).readTree(any<String>())
 
         verify(llmLogger).log(check { record ->
-            assertThat(record.response).isEqualTo(response)
-            assertThat(record.systemPrompt).contains("Верни строго один JSON-объект")
+            assertThat(record.rawResponse).isEqualTo(response)
+            assertThat(record.systemTemplateId).isEqualTo(LlmPromptTemplates.SYSTEM_TEMPLATE_ID)
+            assertThat(record.userTemplateId).isEqualTo(LlmPromptTemplates.USER_TEMPLATE_ID)
+            assertThat(record.renderedUserPrompt).isEqualTo("rendered user prompt")
         })
     }
 
