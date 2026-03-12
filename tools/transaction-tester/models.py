@@ -27,6 +27,7 @@ class GeneratorConfig:
     category_counts: Dict[str, int]
     random_fill_enabled: bool
     ambiguous_ratio: float
+    low_confidence_ratio: float
     send_interval_ms: int
     seed: Optional[int]
     verify_after_send: bool
@@ -38,6 +39,7 @@ class GeneratedTransaction:
     transaction_id: str
     user_id: str
     category: str
+    profile: str
     is_ambiguous: bool
     payload: Dict[str, Any]
 
@@ -47,7 +49,9 @@ class GenerationResult:
     user_ids: List[str]
     transactions: List[GeneratedTransaction]
     category_totals: Dict[str, int]
+    profile_totals: Dict[str, int]
     ambiguous_count: int
+    warnings: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

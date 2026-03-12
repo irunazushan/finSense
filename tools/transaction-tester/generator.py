@@ -15,6 +15,10 @@ import yaml
 from models import CategoryTemplate, GeneratedTransaction, GenerationResult, GeneratorConfig
 
 
+PROFILE_NORMAL = "normal"
+PROFILE_LOW_CONFIDENCE = "low_confidence"
+PROFILE_AMBIGUOUS = "ambiguous"
+
 AMBIGUOUS_DESCRIPTIONS: Sequence[str] = (
     "misc card operation",
     "general account transfer",
@@ -106,10 +110,17 @@ def generate_transactions(
         user_ids = [config.target_user_id]
     else:
         user_ids = [str(uuid.uuid4()) for _ in range(config.users_count)]
+    profile_plan = _build_profile_plan(
+        total_transactions=total_transactions,
+        ambiguous_ratio=config.ambiguous_ratio,
+        low_confidence_ratio=config.low_confidence_ratio,
+        rng=rng,
+    )
 
     transactions: List[GeneratedTransaction] = []
     category_totals: Counter[str] = Counter()
-    ambiguous_count = 0
+    profile_totals: Counter[str] = Counter()
+    low_confidence_fallbacks: Counter[str] = Counter()
 
     for index, category in enumerate(category_plan):
         if config.target_user_id:
@@ -117,25 +128,33 @@ def generate_transactions(
         else:
             user_id = user_ids[index // config.tx_per_user]
 
-        is_ambiguous = config.ambiguous_ratio > 0 and rng.random() < config.ambiguous_ratio
+        requested_profile = profile_plan[index]
+        template = templates.get(category, CategoryTemplate(category=category))
+        profile = requested_profile
+        if requested_profile == PROFILE_LOW_CONFIDENCE and not template.mcc_codes:
+            low_confidence_fallbacks[category] += 1
+            profile = PROFILE_NORMAL
+
         transaction = _build_transaction(
             user_id=user_id,
             category=category,
-            template=templates.get(category, CategoryTemplate(category=category)),
-            is_ambiguous=is_ambiguous,
+            template=template,
+            templates=templates,
+            profile=profile,
             config=config,
             rng=rng,
         )
         transactions.append(transaction)
         category_totals[category] += 1
-        if is_ambiguous:
-            ambiguous_count += 1
+        profile_totals[transaction.profile] += 1
 
     return GenerationResult(
         user_ids=user_ids,
         transactions=transactions,
         category_totals=dict(category_totals),
-        ambiguous_count=ambiguous_count,
+        profile_totals=dict(profile_totals),
+        ambiguous_count=profile_totals.get(PROFILE_AMBIGUOUS, 0),
+        warnings=_build_generation_warnings(low_confidence_fallbacks),
     )
 
 
@@ -174,6 +193,10 @@ def _validate_config(config: GeneratorConfig, allowed_categories: Sequence[str])
         raise ValueError("send_interval_ms must be greater than or equal to 0")
     if config.ambiguous_ratio < 0 or config.ambiguous_ratio > 1:
         raise ValueError("ambiguous_ratio must be in range [0.0, 1.0]")
+    if config.low_confidence_ratio < 0 or config.low_confidence_ratio > 1:
+        raise ValueError("low_confidence_ratio must be in range [0.0, 1.0]")
+    if config.ambiguous_ratio + config.low_confidence_ratio > 1:
+        raise ValueError("ambiguous_ratio + low_confidence_ratio must be less than or equal to 1.0")
     if config.target_user_id:
         try:
             UUID(config.target_user_id)
@@ -224,11 +247,51 @@ def _build_category_plan(
     return plan
 
 
+def calculate_profile_targets(
+    total_transactions: int,
+    ambiguous_ratio: float,
+    low_confidence_ratio: float,
+) -> Dict[str, int]:
+    ambiguous_target = int(round(total_transactions * ambiguous_ratio))
+    low_confidence_target = int(round(total_transactions * low_confidence_ratio))
+
+    if ambiguous_target + low_confidence_target > total_transactions:
+        low_confidence_target = max(0, total_transactions - ambiguous_target)
+
+    normal_target = max(0, total_transactions - ambiguous_target - low_confidence_target)
+    return {
+        PROFILE_AMBIGUOUS: ambiguous_target,
+        PROFILE_LOW_CONFIDENCE: low_confidence_target,
+        PROFILE_NORMAL: normal_target,
+    }
+
+
+def _build_profile_plan(
+    total_transactions: int,
+    ambiguous_ratio: float,
+    low_confidence_ratio: float,
+    rng: random.Random,
+) -> List[str]:
+    targets = calculate_profile_targets(
+        total_transactions=total_transactions,
+        ambiguous_ratio=ambiguous_ratio,
+        low_confidence_ratio=low_confidence_ratio,
+    )
+    plan: List[str] = (
+        [PROFILE_AMBIGUOUS] * targets[PROFILE_AMBIGUOUS]
+        + [PROFILE_LOW_CONFIDENCE] * targets[PROFILE_LOW_CONFIDENCE]
+        + [PROFILE_NORMAL] * targets[PROFILE_NORMAL]
+    )
+    rng.shuffle(plan)
+    return plan
+
+
 def _build_transaction(
     user_id: str,
     category: str,
     template: CategoryTemplate,
-    is_ambiguous: bool,
+    templates: Dict[str, CategoryTemplate],
+    profile: str,
     config: GeneratorConfig,
     rng: random.Random,
 ) -> GeneratedTransaction:
@@ -236,10 +299,18 @@ def _build_transaction(
     timestamp = _random_timestamp(config.start_datetime, config.end_datetime, rng)
     amount = _random_amount(config.amount_min, config.amount_max, rng)
 
-    if is_ambiguous:
+    if profile == PROFILE_AMBIGUOUS:
         description = rng.choice(list(AMBIGUOUS_DESCRIPTIONS))
         merchant_name = rng.choice(list(AMBIGUOUS_MERCHANTS))
         mcc_code = rng.choice(list(UNKNOWN_MCC_CODES)) if rng.random() < 0.4 else None
+    elif profile == PROFILE_LOW_CONFIDENCE:
+        description, merchant_name = _build_low_confidence_text(
+            category=category,
+            template=template,
+            templates=templates,
+            rng=rng,
+        )
+        mcc_code = rng.choice(template.mcc_codes) if template.mcc_codes else None
     else:
         description = _build_description(template, category, rng)
         merchant_name = _build_merchant_name(template, category, rng)
@@ -259,7 +330,8 @@ def _build_transaction(
         transaction_id=transaction_id,
         user_id=user_id,
         category=category,
-        is_ambiguous=is_ambiguous,
+        profile=profile,
+        is_ambiguous=(profile == PROFILE_AMBIGUOUS),
         payload=payload,
     )
 
@@ -276,6 +348,66 @@ def _build_merchant_name(template: CategoryTemplate, category: str, rng: random.
         keyword = rng.choice(template.keywords).replace("_", " ").title()
         return f"{keyword} Store"
     return f"{category.replace('_', ' ').title()} Merchant"
+
+
+def _build_low_confidence_text(
+    category: str,
+    template: CategoryTemplate,
+    templates: Dict[str, CategoryTemplate],
+    rng: random.Random,
+) -> Tuple[str, str]:
+    contradiction_keywords = _pick_contradiction_keywords(
+        category=category,
+        same_category_keywords=template.keywords,
+        templates=templates,
+        rng=rng,
+    )
+    if not contradiction_keywords:
+        return "general transfer adjustment", "Neutral Service Hub"
+
+    description = f"{' '.join(contradiction_keywords)} transfer"
+    merchant_keyword = contradiction_keywords[0].replace("_", " ").title()
+    merchant_name = f"{merchant_keyword} Hub"
+    return description, merchant_name
+
+
+def _pick_contradiction_keywords(
+    category: str,
+    same_category_keywords: Sequence[str],
+    templates: Dict[str, CategoryTemplate],
+    rng: random.Random,
+) -> List[str]:
+    same_keywords = {keyword.strip().lower() for keyword in same_category_keywords if keyword}
+    donor_candidates: List[List[str]] = []
+
+    for other_category, other_template in templates.items():
+        if other_category == category:
+            continue
+        donor_keywords = sorted(
+            {
+                keyword.strip().lower()
+                for keyword in other_template.keywords
+                if keyword and keyword.strip().lower() not in same_keywords
+            }
+        )
+        if donor_keywords:
+            donor_candidates.append(donor_keywords)
+
+    if not donor_candidates:
+        return []
+
+    donor_keywords = rng.choice(donor_candidates)
+    hit_count = rng.randint(1, min(3, len(donor_keywords)))
+    return rng.sample(donor_keywords, k=hit_count)
+
+
+def _build_generation_warnings(low_confidence_fallbacks: Counter[str]) -> List[str]:
+    warnings: List[str] = []
+    for category, count in sorted(low_confidence_fallbacks.items()):
+        warnings.append(
+            f"Low-confidence fallback to normal for category '{category}' due to missing MCC templates: {count}"
+        )
+    return warnings
 
 
 def _random_amount(amount_min: Decimal, amount_max: Decimal, rng: random.Random) -> float:

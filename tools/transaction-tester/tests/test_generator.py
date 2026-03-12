@@ -8,12 +8,13 @@ from pathlib import Path
 import sys
 from uuid import UUID
 
+import pytest
 
 TESTER_DIR = Path(__file__).resolve().parents[1]
 if str(TESTER_DIR) not in sys.path:
     sys.path.insert(0, str(TESTER_DIR))
 
-from generator import generate_transactions, load_category_templates  # noqa: E402
+from generator import calculate_profile_targets, generate_transactions, load_category_templates  # noqa: E402
 from models import GeneratorConfig  # noqa: E402
 
 
@@ -39,6 +40,7 @@ def make_config(
     tx_per_user: int = 3,
     random_fill_enabled: bool = True,
     ambiguous_ratio: float = 0.0,
+    low_confidence_ratio: float = 0.0,
     target_user_id: str | None = None,
 ) -> GeneratorConfig:
     return GeneratorConfig(
@@ -54,6 +56,7 @@ def make_config(
         category_counts=category_counts,
         random_fill_enabled=random_fill_enabled,
         ambiguous_ratio=ambiguous_ratio,
+        low_confidence_ratio=low_confidence_ratio,
         send_interval_ms=0,
         seed=7,
         verify_after_send=False,
@@ -133,6 +136,7 @@ def test_ambiguous_generation_creates_low_signal_events() -> None:
 
     result = generate_transactions(config, templates, categories)
     assert result.ambiguous_count == 20
+    assert result.profile_totals["ambiguous"] == 20
     assert all(tx.is_ambiguous for tx in result.transactions)
 
     known_keywords = {
@@ -143,6 +147,84 @@ def test_ambiguous_generation_creates_low_signal_events() -> None:
     for tx in result.transactions:
         description = (tx.payload.get("description") or "").lower()
         assert all(keyword not in description for keyword in known_keywords)
+
+
+def test_profile_allocation_targets_match_counts() -> None:
+    templates, categories = load_category_templates(RULES_PATH, ENUM_PATH)
+    config = make_config(
+        category_counts={"HEALTH": 10},
+        users_count=1,
+        tx_per_user=10,
+        random_fill_enabled=False,
+        ambiguous_ratio=0.2,
+        low_confidence_ratio=0.4,
+    )
+
+    result = generate_transactions(config, templates, categories)
+    expected = calculate_profile_targets(10, 0.2, 0.4)
+    assert result.profile_totals == expected
+    assert result.ambiguous_count == expected["ambiguous"]
+
+
+def test_low_confidence_transactions_use_mcc_and_cross_category_keywords() -> None:
+    templates, categories = load_category_templates(RULES_PATH, ENUM_PATH)
+    config = make_config(
+        category_counts={"FOOD_AND_DRINKS": 20},
+        users_count=1,
+        tx_per_user=20,
+        random_fill_enabled=False,
+        low_confidence_ratio=1.0,
+    )
+
+    result = generate_transactions(config, templates, categories)
+    assert result.profile_totals["low_confidence"] == 20
+
+    target_keywords = set(templates["FOOD_AND_DRINKS"].keywords)
+    other_keywords = {
+        keyword
+        for category, template in templates.items()
+        if category != "FOOD_AND_DRINKS"
+        for keyword in template.keywords
+    }
+
+    for tx in result.transactions:
+        assert tx.profile == "low_confidence"
+        assert tx.payload["mccCode"] in templates["FOOD_AND_DRINKS"].mcc_codes
+        text = f"{tx.payload.get('description', '')} {tx.payload.get('merchantName', '')}".lower()
+        assert all(keyword not in text for keyword in target_keywords)
+        assert any(keyword in text for keyword in other_keywords)
+
+
+def test_low_confidence_falls_back_to_normal_without_mcc_and_warns() -> None:
+    templates, categories = load_category_templates(RULES_PATH, ENUM_PATH)
+    config = make_config(
+        category_counts={"OTHER": 6},
+        users_count=1,
+        tx_per_user=6,
+        random_fill_enabled=False,
+        low_confidence_ratio=1.0,
+    )
+
+    result = generate_transactions(config, templates, categories)
+    assert result.profile_totals["normal"] == 6
+    assert "low_confidence" not in result.profile_totals
+    assert result.warnings
+    assert "OTHER" in result.warnings[0]
+
+
+def test_ratio_validation_rejects_sum_above_one() -> None:
+    templates, categories = load_category_templates(RULES_PATH, ENUM_PATH)
+    config = make_config(
+        category_counts={"HEALTH": 2},
+        users_count=1,
+        tx_per_user=2,
+        random_fill_enabled=False,
+        ambiguous_ratio=0.7,
+        low_confidence_ratio=0.4,
+    )
+
+    with pytest.raises(ValueError, match="ambiguous_ratio \\+ low_confidence_ratio"):
+        generate_transactions(config, templates, categories)
 
 
 def test_target_user_id_routes_all_transactions_to_single_user() -> None:

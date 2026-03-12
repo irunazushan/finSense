@@ -16,7 +16,7 @@ from core_client import (
     fetch_user_transactions_page,
     poll_generated_transactions,
 )
-from generator import generate_transactions, load_category_templates
+from generator import calculate_profile_targets, generate_transactions, load_category_templates
 from models import (
     ClientTransactionFilters,
     GenerationResult,
@@ -118,11 +118,13 @@ def render_generator_tab(
     topic: str,
 ) -> None:
     st.subheader("Event Generator")
-    users_count, tx_per_user, target_user_id, amount_min, amount_max, start_datetime, end_datetime, random_fill_enabled, ambiguous_ratio, send_interval_ms, seed, verify_after_send, verify_timeout_seconds, verify_poll_interval_seconds = render_generator_controls()
+    users_count, tx_per_user, target_user_id, amount_min, amount_max, start_datetime, end_datetime, random_fill_enabled, ambiguous_ratio, low_confidence_ratio, send_interval_ms, seed, verify_after_send, verify_timeout_seconds, verify_poll_interval_seconds = render_generator_controls()
 
     st.subheader("Category Distribution")
     category_counts = render_category_controls(allowed_categories)
-    render_distribution_status(users_count * tx_per_user, category_counts, random_fill_enabled)
+    total_transactions = users_count * tx_per_user
+    render_distribution_status(total_transactions, category_counts, random_fill_enabled)
+    render_profile_plan_status(total_transactions, ambiguous_ratio, low_confidence_ratio)
     if target_user_id:
         st.info("All generated transactions will be sent to the target user UUID.")
 
@@ -148,6 +150,7 @@ def render_generator_tab(
             category_counts=category_counts,
             random_fill_enabled=random_fill_enabled,
             ambiguous_ratio=ambiguous_ratio,
+            low_confidence_ratio=low_confidence_ratio,
             send_interval_ms=send_interval_ms,
             seed=seed,
             verify_after_send=verify_after_send,
@@ -189,6 +192,7 @@ def render_generator_controls() -> Tuple[
     datetime,
     bool,
     float,
+    float,
     int,
     int | None,
     bool,
@@ -215,6 +219,21 @@ def render_generator_controls() -> Tuple[
             if ambiguous_enabled
             else 0.0
         )
+        low_confidence_enabled = st.checkbox(
+            "Inject low-confidence classified transactions",
+            value=True,
+        )
+        low_confidence_ratio = (
+            st.slider(
+                "Low-confidence ratio",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.40,
+                step=0.01,
+            )
+            if low_confidence_enabled
+            else 0.0
+        )
         send_interval_ms = int(st.number_input("Send interval (ms)", min_value=0, max_value=60000, value=0, step=10))
         seed_text = st.text_input("Random seed (optional)", value="")
         seed = int(seed_text) if seed_text.strip() else None
@@ -235,6 +254,7 @@ def render_generator_controls() -> Tuple[
         end_datetime,
         random_fill_enabled,
         ambiguous_ratio,
+        low_confidence_ratio,
         send_interval_ms,
         seed,
         verify_after_send,
@@ -411,14 +431,35 @@ def render_distribution_status(total: int, category_counts: Dict[str, int], rand
         st.info("Remaining transactions will be filled randomly by allowed categories.")
 
 
+def render_profile_plan_status(
+    total_transactions: int,
+    ambiguous_ratio: float,
+    low_confidence_ratio: float,
+) -> None:
+    targets = calculate_profile_targets(
+        total_transactions=total_transactions,
+        ambiguous_ratio=ambiguous_ratio,
+        low_confidence_ratio=low_confidence_ratio,
+    )
+    st.markdown("**Planned signal profile mix**")
+    metrics = st.columns(3)
+    metrics[0].metric("Ambiguous", targets.get("ambiguous", 0))
+    metrics[1].metric("Low-confidence", targets.get("low_confidence", 0))
+    metrics[2].metric("Normal", targets.get("normal", 0))
+
+
 def render_generation_summary(result: GenerationResult) -> None:
     st.subheader("Generation Summary")
     total = len(result.transactions)
     summary_cols = st.columns(4)
     summary_cols[0].metric("Generated events", total)
     summary_cols[1].metric("Users", len(result.user_ids))
-    summary_cols[2].metric("Ambiguous events", result.ambiguous_count)
-    summary_cols[3].metric("Distinct categories", len(result.category_totals))
+    summary_cols[2].metric("Low-confidence events", result.profile_totals.get("low_confidence", 0))
+    summary_cols[3].metric("Ambiguous events", result.profile_totals.get("ambiguous", 0))
+
+    profile_rows = [{"profile": profile, "count": count} for profile, count in sorted(result.profile_totals.items())]
+    st.write("Signal profile totals:")
+    st.dataframe(profile_rows, use_container_width=True)
 
     category_rows = [{"category": category, "count": count} for category, count in sorted(result.category_totals.items())]
     st.write("Category totals:")
@@ -428,11 +469,16 @@ def render_generation_summary(result: GenerationResult) -> None:
     for tx in result.transactions[:25]:
         row = dict(tx.payload)
         row["targetCategory"] = tx.category
-        row["ambiguous"] = tx.is_ambiguous
+        row["profile"] = tx.profile
         sample_rows.append(row)
 
     st.write("Payload sample (first 25):")
     st.dataframe(sample_rows, use_container_width=True)
+
+    if result.warnings:
+        st.warning("Generation warnings:")
+        for warning_text in result.warnings:
+            st.code(warning_text)
 
     with st.expander("Generated user IDs"):
         st.code("\n".join(result.user_ids))

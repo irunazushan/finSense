@@ -12,6 +12,7 @@ Streamlit tool for generating synthetic transactions and publishing them to Kafk
 - Optional target user UUID in Generator:
   - all generated events are sent to this exact `userId`
 - Optional ambiguous low-signal events to exercise ML to LLM fallback path.
+- Optional low-confidence classified events to exercise ML to LLM fallback path with defined categories.
 - Optional post-send verification through Core API:
   - `GET /api/v1/users/{userId}/transactions`
   - aggregated status and category summary
@@ -30,6 +31,32 @@ Streamlit tool for generating synthetic transactions and publishing them to Kafk
 - "Load all pages" iterates through Core pages (`size` up to 200) until the last page.
 - Client-side filters are applied after server fetch and shown in the filtered table/aggregates.
 - If Core returns empty/non-JSON/error body, explorer shows a descriptive API error message.
+
+## Generator Signal Profiles
+
+Generator now supports three profiles:
+
+- `normal`:
+  - regular category-aligned generation (often high ML confidence)
+- `low_confidence`:
+  - forces a valid MCC for selected category
+  - injects conflicting keywords from other categories
+  - intended to produce classified transactions with confidence below `0.9`
+- `ambiguous`:
+  - low-signal text with weak/no category evidence
+  - may be classified as `UNDEFINED`
+
+Controls in UI:
+
+- `Inject ambiguous low-signal transactions` + `Ambiguous ratio`
+- `Inject low-confidence classified transactions` + `Low-confidence ratio` (default `0.40`)
+
+Validation:
+
+- each ratio must be in `[0.0, 1.0]`
+- `ambiguous_ratio + low_confidence_ratio <= 1.0`
+- remaining share is generated as `normal`
+- if a selected category has no MCC templates (for example `OTHER`), requested `low_confidence` events for it fall back to `normal` and a warning is shown in the summary
 
 ## Local Run
 
