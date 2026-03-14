@@ -327,6 +327,8 @@ pyrightconfig.json
 # my custom files and dirs
 **/notes.txt
 run.txt
+todol.txt
+
 ai_agent_test
 
 **/.vscode/
@@ -339,5 +341,3 @@ ai_agent_test
 **/build/
 **/.gradle-user
 **/bin/
-
- ./todo.txt
