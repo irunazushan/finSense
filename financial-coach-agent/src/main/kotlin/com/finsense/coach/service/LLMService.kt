@@ -71,7 +71,7 @@ class LLMService(
             val latency = System.currentTimeMillis() - started
             val rawText = chatResponse.result?.output?.text?.trim().orEmpty()
             val usedModel = chatResponse.metadata?.model?.takeIf { it.isNotBlank() } ?: openAiModel
-            val totalTokens = extractTotalTokens(chatResponse)
+            val totalTokens = chatResponse.metadata.usage.totalTokens
 
             // Audit full provider response first, parse later.
             llmLogger.log(
@@ -133,17 +133,6 @@ class LLMService(
         }
     }
 
-    private fun extractTotalTokens(chatResponse: org.springframework.ai.chat.model.ChatResponse): Int? {
-        val usage = chatResponse.metadata?.usage ?: return null
-        val nativeUsage = usage.nativeUsage
-        val hasUsageData = when (nativeUsage) {
-            null -> false
-            is Map<*, *> -> nativeUsage.isNotEmpty()
-            else -> true
-        }
-        return if (hasUsageData) usage.totalTokens else null
-    }
-
     private fun parseAdvice(raw: String): Pair<String, String> {
         val cleaned = raw
             .removePrefix("```json")
@@ -161,12 +150,12 @@ class LLMService(
     }
 
     private fun fallbackSummary(text: String): String {
-        return text.lineSequence().firstOrNull { it.isNotBlank() }?.take(180)
+        return text.lineSequence().firstOrNull { it.isNotBlank() }?.take(500)
             ?: "Подготовлен общий анализ расходов за выбранный период."
     }
 
     private fun fallbackAdvice(text: String): String {
-        return text.take(600)
+        return text.take(200)
             .ifBlank { "Сократите крупные повторяющиеся расходы и контролируйте категории с наибольшей долей трат." }
     }
 }

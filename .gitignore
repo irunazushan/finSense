@@ -339,3 +339,5 @@ ai_agent_test
 **/build/
 **/.gradle-user
 **/bin/
+
+ ./todo.txt

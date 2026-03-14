@@ -45,7 +45,7 @@ spring:
         options:
           model: ${LLM_MODEL:deepseek-chat}
           temperature: ${LLM_TEMPERATURE:0.1}
-          max-tokens: ${LLM_MAX_TOKENS:300}
+          max-tokens: ${LLM_MAX_TOKENS:500}
 
 management:
   endpoints:
@@ -59,7 +59,7 @@ management:
 
 app:
   llm:
-    timeout-seconds: ${LLM_TIMEOUT_SECONDS:30}
+    timeout-seconds: ${LLM_TIMEOUT_SECONDS:60}
   analytics:
     top-merchants-limit: ${ANALYTICS_TOP_MERCHANTS_LIMIT:5}
   kafka:

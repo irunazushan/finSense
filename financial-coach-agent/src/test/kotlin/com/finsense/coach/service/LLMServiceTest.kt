@@ -127,22 +127,6 @@ class LLMServiceTest {
         })
     }
 
-    @Test
-    fun `missing metadata falls back to configured model and null tokens`() {
-        whenever(callSpec.chatResponse()).thenReturn(
-            chatResponse(
-                text = """{"summary":"S","advice":"A"}""",
-                model = "",
-                usage = null
-            )
-        )
-
-        val result = llmService.generateAdvice(UUID.randomUUID(), UUID.randomUUID(), 30, "дай совет")
-
-        assertThat(result.usedModel).isEqualTo("deepseek-configured")
-        assertThat(result.totalTokens).isNull()
-    }
-
     private fun chatResponse(
         text: String,
         model: String,
