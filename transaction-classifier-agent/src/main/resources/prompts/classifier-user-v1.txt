@@ -1,0 +1,8 @@
+Allowed categories:
+{{allowedCategories}}
+
+Classify this transaction using the allowed categories only.
+Current request payload:
+{{requestPayload}}
+
+Return JSON only.

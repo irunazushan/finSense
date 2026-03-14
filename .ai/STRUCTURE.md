@@ -198,3 +198,22 @@ transaction-classifier-agent/
 notify-service/
   Dockerfile
 ```
+
+## Documentation
+
+### `docs`
+```text
+docs/
+  architecture_diagrams.md
+  architecture_driver.md
+  business_case.md
+  create_tables.sql
+  notes.txt
+  services/
+    classifier-service.md
+    core-service.md
+    financial-coach-agent.md
+    kafka.md
+    notify-service.md
+    transaction-classifier-agent.md
+```

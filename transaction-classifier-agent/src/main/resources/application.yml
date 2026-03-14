@@ -1,0 +1,62 @@
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  main:
+    web-application-type: none
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+  application:
+    name: transaction-classifier-agent
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:reasoning-agent-group}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  ai:
+    openai:
+      api-key: ${SPRING_AI_OPENAI_API_KEY:test-key-for-disabled-llm}
+      base-url: ${LLM_API_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${LLM_MODEL:deepseek-chat}
+          temperature: ${LLM_TEMPERATURE:0.1}
+          max-tokens: ${LLM_MAX_TOKENS:500}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  kafka:
+    topics:
+      llm-classifier-requests: ${KAFKA_TOPIC_LLM_CLASSIFIER_REQUESTS:llm-classifier-requests}
+      llm-classifier-responses: ${KAFKA_TOPIC_LLM_CLASSIFIER_RESPONSES:llm-classifier-responses}
+  llm:
+    timeout-seconds: ${LLM_TIMEOUT_SECONDS:60}
+    retry:
+      max-attempts: ${LLM_RETRY_MAX_ATTEMPTS:3}
+      backoff-delay-ms: ${LLM_RETRY_BACKOFF_DELAY_MS:1000}
+    allowed-categories:
+      - FOOD_AND_DRINKS
+      - TRANSPORT
+      - SHOPPING
+      - ENTERTAINMENT
+      - HEALTH
+      - OTHER
+      - UNDEFINED
+  logging:
+    llm-logs-dir: ${LLM_LOGS_DIR:./logs/llm-classifier}
