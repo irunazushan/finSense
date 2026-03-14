@@ -2,4 +2,9 @@ requestId: {{requestId}}
 userId: {{userId}}
 periodDays: {{periodDays}}
 userMessage: {{userMessage}}
-Сначала получи факты из tools по userId и periodDays, затем верни JSON с summary и advice.
+
+Инструкция:
+- Если доступны tools, сначала получи факты из tools по userId и periodDays.
+- Если tools недоступны или фактов мало, не выдумывай суммы и метрики; явно напиши, каких данных не хватает.
+- Верни строго JSON:
+{"summary":"...","advice":"..."}

@@ -46,10 +46,10 @@ cd tools/prompt-lab
 python -m venv .venv
 . .venv/Scripts/activate
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run app.py --server.port 8502
 ```
 
-Open: `http://localhost:8501`
+Open: `http://localhost:8502`
 
 ## Docker Run (Compose profile)
 
