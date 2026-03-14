@@ -214,7 +214,7 @@ def render_latest_result(current_result: Optional[RunResult]) -> None:
     if current_result is None:
         return
     st.subheader("Latest Run")
-    render_result(current_result)
+    render_result(current_result, key_prefix="latest", allow_step_expanders=True)
 
 
 def render_history() -> None:
@@ -230,10 +230,14 @@ def render_history() -> None:
             f"model={item['model']} | latency={item['latency_ms']}ms | tokens={item['total_tokens']}"
         )
         with st.expander(label, expanded=(idx == 0)):
-            render_result(_dict_to_result(item["result"]))
+            render_result(
+                _dict_to_result(item["result"]),
+                key_prefix=f"history_{idx}",
+                allow_step_expanders=False,
+            )
 
 
-def render_result(result: RunResult) -> None:
+def render_result(result: RunResult, key_prefix: str, allow_step_expanders: bool) -> None:
     metrics = st.columns(5)
     metrics[0].metric("Status", result.status)
     metrics[1].metric("Mode", result.mode)
@@ -245,34 +249,50 @@ def render_result(result: RunResult) -> None:
         st.error(result.error)
 
     st.markdown("**Final assistant output**")
-    st.code(result.final_text or "<empty>")
+    st.text_area(
+        "Final assistant output",
+        value=result.final_text or "<empty>",
+        height=260,
+        disabled=True,
+        key=f"{key_prefix}_final_output",
+        label_visibility="collapsed",
+    )
 
     st.markdown("**Trace**")
     for step in result.steps:
-        with st.expander(f"Step {step.index}", expanded=False):
-            st.markdown("Assistant content:")
-            st.code(step.assistant_content or "<empty>")
+        if allow_step_expanders:
+            with st.expander(f"Step {step.index}", expanded=False):
+                _render_step_trace(step)
+        else:
+            st.markdown(f"**Step {step.index}**")
+            _render_step_trace(step)
+            st.divider()
 
-            if step.tool_calls:
-                st.markdown("Tool calls:")
-                for tool_call in step.tool_calls:
-                    st.write(
-                        {
-                            "id": tool_call.id,
-                            "name": tool_call.name,
-                            "arguments": tool_call.arguments,
-                            "error": tool_call.error,
-                        }
-                    )
-                    st.json({"result": tool_call.result} if tool_call.error is None else {"error": tool_call.error})
 
-            left, right = st.columns(2)
-            with left:
-                st.markdown("Request payload")
-                st.json(step.request_payload)
-            with right:
-                st.markdown("Response payload")
-                st.json(step.response_payload)
+def _render_step_trace(step) -> None:
+    st.markdown("Assistant content:")
+    st.code(step.assistant_content or "<empty>")
+
+    if step.tool_calls:
+        st.markdown("Tool calls:")
+        for tool_call in step.tool_calls:
+            st.write(
+                {
+                    "id": tool_call.id,
+                    "name": tool_call.name,
+                    "arguments": tool_call.arguments,
+                    "error": tool_call.error,
+                }
+            )
+            st.json({"result": tool_call.result} if tool_call.error is None else {"error": tool_call.error})
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("Request payload")
+        st.json(step.request_payload)
+    with right:
+        st.markdown("Response payload")
+        st.json(step.response_payload)
 
 
 def add_run_to_history(settings: LLMSettings, result: RunResult) -> None:
