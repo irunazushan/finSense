@@ -1,0 +1,93 @@
+{
+  "adviceData": {
+    "tools": {
+      "spikes": [
+        {
+          "date": "2026-02-26",
+          "category": "UNDEFINED",
+          "spikeAmount": 118438.38,
+          "baselineAmount": 47669.44818181818
+        },
+        {
+          "date": "2026-03-01",
+          "category": "TRANSPORT",
+          "spikeAmount": 98826.04,
+          "baselineAmount": 33777.078571428574
+        },
+        {
+          "date": "2026-03-05",
+          "category": "UNDEFINED",
+          "spikeAmount": 90207.71,
+          "baselineAmount": 47669.44818181818
+        }
+      ],
+      "monthlyDelta": [
+        {
+          "category": "UNDEFINED",
+          "deltaAmount": 230579.84,
+          "deltaPercent": 78.49,
+          "currentAmount": 524363.93,
+          "previousAmount": 293784.09
+        },
+        {
+          "category": "HEALTH",
+          "deltaAmount": 140489.16,
+          "deltaPercent": 107.13,
+          "currentAmount": 271626.46,
+          "previousAmount": 131137.3
+        },
+        {
+          "category": "TRANSPORT",
+          "deltaAmount": -90820.89,
+          "deltaPercent": -27.75,
+          "currentAmount": 236439.55,
+          "previousAmount": 327260.44
+        }
+      ],
+      "topMerchants": [
+        {
+          "totalAmount": 288001.5,
+          "merchantName": "Other Merchant",
+          "transactionCount": 11
+        },
+        {
+          "totalAmount": 115592.53,
+          "merchantName": "Unknown Merchant",
+          "transactionCount": 3
+        },
+        {
+          "totalAmount": 55341.15,
+          "merchantName": "Card Terminal",
+          "transactionCount": 2
+        },
+        {
+          "totalAmount": 47103.4,
+          "merchantName": "Starbucks Store",
+          "transactionCount": 2
+        }
+      ],
+      "spendingByCategory": [
+        {
+          "category": "UNDEFINED",
+          "totalAmount": 524363.93,
+          "transactionCount": 18
+        },
+        {
+          "category": "HEALTH",
+          "totalAmount": 271626.46,
+          "transactionCount": 11
+        },
+        {
+          "category": "SHOPPING",
+          "totalAmount": 259113.66,
+          "transactionCount": 11
+        },
+        {
+          "category": "TRANSPORT",
+          "totalAmount": 236439.55,
+          "transactionCount": 9
+        }
+      ]
+    }
+  }
+}

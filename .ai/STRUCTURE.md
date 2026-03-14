@@ -1,0 +1,200 @@
+# finSense Project Structure
+
+## Main Services
+
+### `core-service`
+```text
+core-service/
+  build.gradle.kts
+  settings.gradle.kts
+  Dockerfile
+  src/
+    main/
+      kotlin/com/finsense/core/
+        CoreServiceApplication.kt
+        api/controller/
+          RecommendationController.kt
+          TransactionController.kt
+        config/
+          AppProperties.kt
+          HttpClientConfig.kt
+        dto/
+          api/
+            CreateRecommendationRequest.kt
+            RecommendationDtos.kt
+            TransactionResponse.kt
+          client/
+            ClassifierDtos.kt
+          kafka/
+            CoachRequestEvent.kt
+            LlmClassifierRequestEvent.kt
+            LlmClassifierResponseEvent.kt
+            RawTransactionEvent.kt
+        infrastructure/
+          client/
+            ClassifierClient.kt
+          kafka/
+            KafkaEventPublisher.kt
+            LlmClassifierResponseConsumer.kt
+            RawTransactionConsumer.kt
+        model/
+          AccountEntity.kt
+          RecommendationEntity.kt
+          RecommendationStatus.kt
+          RecommendationTrigger.kt
+          TransactionEntity.kt
+          TransactionStatus.kt
+          UserEntity.kt
+        repository/
+          AccountRepository.kt
+          RecommendationRepository.kt
+          TransactionRepository.kt
+          UserRepository.kt
+        service/
+          RecommendationScheduler.kt
+          RecommendationService.kt
+          TransactionService.kt
+          UserBootstrapService.kt
+      resources/
+        application.yml
+        db/changelog/
+          db.changelog-master.yaml
+          sql/001_init.sql
+    test/
+      kotlin/com/finsense/core/e2e/
+        BaseE2ETest.kt
+        KafkaTransactionFlowE2ETest.kt
+        RecommendationEndpointsE2ETest.kt
+        SchedulerRecommendationE2ETest.kt
+        TransactionEndpointsE2ETest.kt
+        utils/
+          DbSeedHelper.kt
+          KafkaProbeHelper.kt
+      resources/
+        application-e2e.yml
+```
+
+### `classifier-service`
+```text
+classifier-service/
+  pom.xml
+  Dockerfile
+  classifier-rules.yaml
+  src/
+    main/
+      java/com/finsense/classifier/
+        ClassifierServiceApplication.java
+        config/
+          ClassificationProperties.java
+          OpenApiConfig.java
+          RulesLoader.java
+        controller/
+          ClassifyController.java
+        dto/
+          ClassificationResult.java
+          ClassifyRequest.java
+        exception/
+          ApiErrorResponse.java
+          GlobalExceptionHandler.java
+        model/
+          ClassificationDecision.java
+          ClassificationInput.java
+          TransactionCategory.java
+        rules/
+          RuleEngine.java
+          RuleSet.java
+          TextNormalizer.java
+        service/
+          ClassificationService.java
+          ClassificationStrategy.java
+          RuleBasedClassificationStrategy.java
+      resources/
+        application.yml
+    test/
+      java/com/finsense/classifier/
+        api/ClassifyControllerApiTest.java
+        config/RulesLoaderTest.java
+        rules/
+          RuleEngineTest.java
+          TextNormalizerTest.java
+      resources/
+        test-classifier-rules.yaml
+```
+
+### `financial-coach-agent`
+```text
+financial-coach-agent/
+  build.gradle.kts
+  settings.gradle.kts
+  Dockerfile
+  src/
+    main/
+      kotlin/com/finsense/coach/
+        FinancialCoachAgentApplication.kt
+        config/
+          AppProperties.kt
+        dto/
+          kafka/
+            CoachRequestEvent.kt
+            CoachResponseEvent.kt
+          llm/
+            LlmAdviceResult.kt
+        kafka/
+          CoachRequestConsumer.kt
+          CoachResponseProducer.kt
+        logging/
+          LlmLogDirectoryInitializer.kt
+          LLMLogger.kt
+        model/
+          AnalyticsModels.kt
+          RecommendationEntity.kt
+          RecommendationStatus.kt
+        repository/
+          JdbcTransactionAnalyticsRepository.kt
+          RecommendationRepository.kt
+          TransactionAnalyticsRepository.kt
+        service/
+          CoachService.kt
+          LLMService.kt
+          LlmPromptTemplates.kt
+          TransactionAnalyzerService.kt
+        util/
+          CoachTools.kt
+      resources/
+        application.yml
+        logback-spring.xml
+        prompts/
+          coach-system-v1.txt
+          coach-user-v1.txt
+    test/
+      kotlin/com/finsense/coach/
+        config/
+          AppPropertiesBindingTest.kt
+        e2e/
+          BaseE2ETest.kt
+          CoachFlowE2ETest.kt
+          utils/
+            DbSeedHelper.kt
+            KafkaProbeHelper.kt
+        logging/
+          LLMLoggerTest.kt
+        service/
+          CoachServiceTest.kt
+          LLMServiceTest.kt
+          LlmPromptTemplatesTest.kt
+      resources/
+        application-e2e.yml
+        schema.sql
+```
+
+### `transaction-classifier-agent`
+```text
+transaction-classifier-agent/
+  Dockerfile
+```
+
+### `notify-service`
+```text
+notify-service/
+  Dockerfile
+```

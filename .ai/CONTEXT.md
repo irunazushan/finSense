@@ -172,3 +172,6 @@
 - REST for fast ML classification; Kafka for slower LLM flows.
 - Structured relational tables for core transactional data; JSONB for AI outputs/metadata.
 - Design must allow future evolution: database-per-service, DLQ/advanced retries, distributed tracing, Redis cache, local LLM inference.
+
+## Repository Structure
+- Main services folder/file structure is maintained in `./.ai/STRUCTURE.md`.
