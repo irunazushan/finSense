@@ -70,6 +70,22 @@ services:
       retries: 5
       start_period: 10s
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: finsense-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - finsense-net
+    restart: unless-stopped
+
 networks:
   finsense-net:
     name: ${FINSENSE_NETWORK_NAME:-finsense_finsense-net}

@@ -6,7 +6,7 @@ COPY src ./src
 RUN gradle bootJar --no-daemon
 
 # ---- Runner stage ----
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 RUN mkdir -p /var/log/finsense/llm-classifier
