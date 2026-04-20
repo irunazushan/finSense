@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import joblib
 import numpy as np
@@ -113,6 +113,48 @@ def evaluate_artifacts(config: EvaluationConfig) -> Dict[str, object]:
     return result
 
 
+def predict_sklearn_scores(
+    model_path: Path,
+    amount: float,
+    description: str,
+    merchant_name: str,
+    mcc_code: str,
+) -> List[Tuple[str, float]]:
+    pipeline = joblib.load(model_path)
+    features = feature_frame(
+        transaction_frame(
+            amount=amount,
+            description=description,
+            merchant_name=merchant_name,
+            mcc_code=mcc_code,
+        )
+    )
+    labels = [str(label) for label in pipeline.named_steps["classifier"].classes_]
+    probabilities = pipeline.predict_proba(features)[0]
+    return sort_scores(labels, probabilities)
+
+
+def predict_onnx_scores(
+    model_path: Path,
+    labels_path: Path,
+    amount: float,
+    description: str,
+    merchant_name: str,
+    mcc_code: str,
+) -> List[Tuple[str, float]]:
+    labels = load_labels(labels_path)
+    features = feature_frame(
+        transaction_frame(
+            amount=amount,
+            description=description,
+            merchant_name=merchant_name,
+            mcc_code=mcc_code,
+        )
+    )
+    probabilities = predict_onnx_probabilities(model_path=model_path, features=features, labels=labels)
+    return sort_scores(labels, probabilities[0])
+
+
 def build_pipeline() -> Pipeline:
     features = ColumnTransformer(
         transformers=[
@@ -164,6 +206,24 @@ def load_dataset(path: Path) -> pd.DataFrame:
     return df
 
 
+def transaction_frame(
+    amount: float,
+    description: str,
+    merchant_name: str,
+    mcc_code: str,
+) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "amount": amount,
+                "description": description,
+                "merchantName": merchant_name,
+                "mccCode": mcc_code,
+            }
+        ]
+    )
+
+
 def feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     features = pd.DataFrame()
     description = df["description"].fillna("").astype(str)
@@ -191,6 +251,12 @@ def export_onnx_model(pipeline: Pipeline, output_path: Path, target_opset: int) 
 
 
 def predict_onnx(model_path: Path, features: pd.DataFrame, labels: List[str]) -> List[str]:
+    probabilities = predict_onnx_probabilities(model_path=model_path, features=features, labels=labels)
+    indices = np.asarray(probabilities).argmax(axis=1)
+    return [labels[int(index)] for index in indices]
+
+
+def predict_onnx_probabilities(model_path: Path, features: pd.DataFrame, labels: List[str]) -> np.ndarray:
     import onnxruntime as ort
 
     session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
@@ -200,9 +266,7 @@ def predict_onnx(model_path: Path, features: pd.DataFrame, labels: List[str]) ->
         "amount": features["amount"].to_numpy(dtype=np.float32).reshape((-1, 1)),
     }
     outputs = session.run(None, feed)
-    probabilities = find_probability_output(outputs, labels)
-    indices = np.asarray(probabilities).argmax(axis=1)
-    return [labels[int(index)] for index in indices]
+    return find_probability_output(outputs, labels)
 
 
 def find_probability_output(outputs: List[object], labels: List[str]) -> np.ndarray:
@@ -232,6 +296,14 @@ def evaluate_predictions(labels: List[str], y_true: List[str], y_pred: List[str]
         "confusion_matrix": confusion_matrix(y_true, y_pred, labels=labels).tolist(),
         "labels": labels,
     }
+
+
+def sort_scores(labels: List[str], probabilities: object) -> List[Tuple[str, float]]:
+    return sorted(
+        [(label, float(probability)) for label, probability in zip(labels, probabilities)],
+        key=lambda item: item[1],
+        reverse=True,
+    )
 
 
 def load_labels(path: Path) -> List[str]:

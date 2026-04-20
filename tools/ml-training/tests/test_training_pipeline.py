@@ -123,3 +123,25 @@ def test_training_and_evaluate_cli_smoke(workspace_tmp: Path) -> None:
     )
     assert "onnx accuracy:" in evaluate_result.stdout
     assert (artifact_dir / "test-evaluation.json").exists()
+
+    predict_result = subprocess.run(
+        [
+            sys.executable,
+            str(ML_TRAINING_DIR / "predict.py"),
+            "--artifact-dir",
+            str(artifact_dir),
+            "--amount",
+            "350",
+            "--description",
+            "coffee payment",
+            "--merchant-name",
+            "Starbucks Cafe",
+            "--mcc-code",
+            "5812",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "category:" in predict_result.stdout
+    assert "confidence:" in predict_result.stdout
