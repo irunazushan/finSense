@@ -205,6 +205,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+.tmp/
+pytest-cache-files-*/
 
 # Translations
 *.mo
@@ -330,6 +332,10 @@ run.txt
 todol.txt
 
 ai_agent_test
+
+tools/ml-training/data/
+tools/ml-training/artifacts/
+tools/ml-training/.test-output/
 
 **/.vscode/
 **/.gradle/
