@@ -34,15 +34,13 @@ def test_export_dataset_schema_sizes_and_ambiguous_labels(workspace_tmp: Path) -
             train_per_category=3,
             validation_per_category=2,
             test_per_category=2,
-            ambiguous_ratio=0.25,
-            low_confidence_ratio=0.25,
             seed=11,
         )
     )
 
-    assert summary["train"]["rows"] == 18
-    assert summary["validation"]["rows"] == 12
-    assert summary["test"]["rows"] == 12
+    assert summary["train"]["rows"] == 21
+    assert summary["validation"]["rows"] == 14
+    assert summary["test"]["rows"] == 14
 
     train_rows = read_rows(workspace_tmp / "train.csv")
     assert list(train_rows[0].keys()) == CSV_COLUMNS
@@ -50,6 +48,8 @@ def test_export_dataset_schema_sizes_and_ambiguous_labels(workspace_tmp: Path) -
     assert ambiguous_rows
     assert all(row["label"] == "UNDEFINED" for row in ambiguous_rows)
     assert all(row["intendedCategory"] for row in train_rows)
+    assert "OTHER" in {row["label"] for row in train_rows}
+    assert "UNDEFINED" in {row["label"] for row in train_rows}
 
 
 def test_export_dataset_is_deterministic_for_fixed_seed(workspace_tmp: Path) -> None:
@@ -59,8 +59,6 @@ def test_export_dataset_is_deterministic_for_fixed_seed(workspace_tmp: Path) -> 
         "train_per_category": 2,
         "validation_per_category": 1,
         "test_per_category": 1,
-        "ambiguous_ratio": 0.10,
-        "low_confidence_ratio": 0.10,
         "seed": 99,
     }
 
@@ -103,3 +101,25 @@ def test_export_dataset_cli_smoke(workspace_tmp: Path) -> None:
     assert (workspace_tmp / "train.csv").exists()
     assert (workspace_tmp / "validation.csv").exists()
     assert (workspace_tmp / "test.csv").exists()
+
+
+def test_export_realistic_profile_uses_total_split_sizes(workspace_tmp: Path) -> None:
+    summary = export_datasets(
+        DatasetExportConfig(
+            output_dir=workspace_tmp,
+            dataset_profile="realistic",
+            train_size=100,
+            validation_size=40,
+            test_size=30,
+            seed=17,
+        )
+    )
+
+    assert summary["train"]["rows"] == 100
+    assert summary["validation"]["rows"] == 40
+    assert summary["test"]["rows"] == 30
+    train_rows = read_rows(workspace_tmp / "train.csv")
+    assert len({row["profile"] for row in train_rows}) > 3
+    assert sum(1 for row in train_rows if row["label"] == "SHOPPING") > sum(
+        1 for row in train_rows if row["label"] == "UNDEFINED"
+    )

@@ -334,6 +334,7 @@ todol.txt
 ai_agent_test
 
 tools/ml-training/data/
+tools/ml-training/data-realistic/
 tools/ml-training/artifacts/
 tools/ml-training/.test-output/
 

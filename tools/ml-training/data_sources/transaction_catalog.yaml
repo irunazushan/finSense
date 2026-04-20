@@ -1,0 +1,286 @@
+distributions:
+  realistic:
+    SHOPPING: 0.35
+    FOOD_AND_DRINKS: 0.25
+    TRANSPORT: 0.15
+    HEALTH: 0.08
+    ENTERTAINMENT: 0.07
+    OTHER: 0.07
+    UNDEFINED: 0.03
+
+profileWeights:
+  clean: 0.28
+  noisy_text: 0.14
+  missing_mcc: 0.10
+  wrong_mcc: 0.08
+  payment_provider: 0.14
+  mixed_language: 0.10
+  short_description: 0.06
+  merchant_only: 0.04
+  description_only: 0.04
+  hard_negative: 0.02
+
+paymentProviders:
+  - "YANDEX PAY"
+  - "TINKOFF PAY"
+  - "SBERPAY"
+  - "APPLE.COM/BILL"
+  - "GOOGLE PAY"
+  - "MIR PAY"
+  - "PAYMENT GATEWAY"
+
+cities:
+  - MOSCOW
+  - KAZAN
+  - SPB
+  - INNOPOLIS
+  - UFA
+  - SAMARA
+  - ONLINE
+
+unknownMccCodes:
+  - "0000"
+  - "5999"
+  - "7299"
+  - "8999"
+
+undefined:
+  descriptions:
+    - "card operation"
+    - "misc payment"
+    - "service adjustment"
+    - "balance correction"
+    - "transaction"
+    - "account operation"
+    - "unknown card payment"
+    - "general transfer"
+  merchants:
+    - "Unknown Merchant"
+    - "Card Terminal"
+    - "Online Gateway"
+    - "Payment Service"
+    - "Generic POS"
+
+categories:
+  FOOD_AND_DRINKS:
+    amountRange: [80, 4500]
+    mccCodes: ["5812", "5813", "5814"]
+    merchants:
+      - "Starbucks"
+      - "Surf Coffee"
+      - "Dodo Pizza"
+      - "Burger King"
+      - "KFC"
+      - "Teremok"
+      - "Shokoladnitsa"
+      - "Coffee Like"
+      - "Sushi Market"
+      - "Cafe Romashka"
+      - "Local Bakery"
+      - "Столовая Университет"
+      - "Кофейня Утро"
+      - "Ресторан Волга"
+    aliases:
+      - "SBX COFFEE"
+      - "DODO*PIZZA"
+      - "KAFE ROMASHKA"
+      - "COFFEE SHOP"
+      - "RESTORAN"
+    templates:
+      - "Card purchase {merchant}"
+      - "POS terminal {merchant}"
+      - "{merchant} online order"
+      - "Payment at {merchant}"
+      - "Food delivery {merchant}"
+      - "Lunch payment {merchant}"
+    mixedTemplates:
+      - "Оплата cafe {merchant}"
+      - "Кофе payment {merchant}"
+      - "Restaurant покупка {merchant}"
+    hardNegatives:
+      - "snack bar payment {merchant}"
+      - "restaurant cashback bonus {merchant}"
+
+  TRANSPORT:
+    amountRange: [35, 3000]
+    mccCodes: ["4111", "4121", "4131", "4789"]
+    merchants:
+      - "Yandex Taxi"
+      - "Uber"
+      - "Citymobil"
+      - "Metro Moscow"
+      - "Kazan Metro"
+      - "Bus Terminal"
+      - "Aeroexpress"
+      - "Russian Railways"
+      - "Такси Максим"
+      - "Метро Казань"
+      - "Автобусный Парк"
+    aliases:
+      - "YANDEX GO"
+      - "UBER TRIP"
+      - "RZD TICKET"
+      - "METRO"
+      - "TAXI"
+    templates:
+      - "Ride payment {merchant}"
+      - "Ticket purchase {merchant}"
+      - "Transport card top up {merchant}"
+      - "{merchant} trip"
+      - "Taxi ride {merchant}"
+    mixedTemplates:
+      - "Такси payment {merchant}"
+      - "Metro поездка {merchant}"
+      - "Bus ticket {merchant}"
+    hardNegatives:
+      - "taxi cashback correction {merchant}"
+      - "transport card service fee {merchant}"
+
+  SHOPPING:
+    amountRange: [150, 25000]
+    mccCodes: ["5311", "5411", "5651", "5699", "5942", "5999"]
+    merchants:
+      - "Ozon"
+      - "Wildberries"
+      - "Amazon"
+      - "Magnit"
+      - "Pyaterochka"
+      - "Perekrestok"
+      - "Auchan"
+      - "Lenta"
+      - "Fix Price"
+      - "DNS"
+      - "MVideo"
+      - "Zara"
+      - "H&M"
+      - "Детский Мир"
+      - "Магнит Семейный"
+    aliases:
+      - "OZON BANK"
+      - "WB MARKET"
+      - "SUPERMARKET"
+      - "PRODUCT STORE"
+      - "SHOP"
+    templates:
+      - "Card purchase {merchant}"
+      - "Online shop {merchant}"
+      - "Retail payment {merchant}"
+      - "{merchant} marketplace order"
+      - "Store purchase {merchant}"
+      - "Grocery payment {merchant}"
+    mixedTemplates:
+      - "Оплата shop {merchant}"
+      - "Supermarket покупка {merchant}"
+      - "Market order {merchant}"
+    hardNegatives:
+      - "stock market education payment {merchant}"
+      - "shopping cashback adjustment {merchant}"
+
+  ENTERTAINMENT:
+    amountRange: [200, 12000]
+    mccCodes: ["7832", "7922", "7996", "7999"]
+    merchants:
+      - "Kinopoisk"
+      - "Cinema Park"
+      - "Karo Film"
+      - "Yandex Afisha"
+      - "Spotify"
+      - "Netflix"
+      - "Steam"
+      - "VK Music"
+      - "Concert Hall"
+      - "Кинотеатр Мир"
+      - "Караоке Ночь"
+      - "Театр Камала"
+    aliases:
+      - "CINEMA"
+      - "THEATER"
+      - "CONCERT"
+      - "CLUB"
+      - "KARAOKE"
+    templates:
+      - "Ticket purchase {merchant}"
+      - "Subscription payment {merchant}"
+      - "Entertainment payment {merchant}"
+      - "{merchant} online service"
+      - "Event booking {merchant}"
+    mixedTemplates:
+      - "Кино ticket {merchant}"
+      - "Concert оплата {merchant}"
+      - "Theater билет {merchant}"
+    hardNegatives:
+      - "bar concert ticket {merchant}"
+      - "club membership event {merchant}"
+
+  HEALTH:
+    amountRange: [250, 30000]
+    mccCodes: ["5912", "8011", "8021", "8099", "7230"]
+    merchants:
+      - "Apteka 36.6"
+      - "Rigla"
+      - "Gorzdrav"
+      - "Invitro"
+      - "Helix"
+      - "Dental Clinic"
+      - "Family Doctor"
+      - "Fit Service Spa"
+      - "Аптека Планета"
+      - "Клиника Здоровье"
+      - "Стоматология Улыбка"
+      - "Массаж Центр"
+    aliases:
+      - "APTEKA"
+      - "PHARMACY"
+      - "CLINIC"
+      - "DENTAL"
+      - "DOCTOR"
+    templates:
+      - "Medical payment {merchant}"
+      - "Pharmacy purchase {merchant}"
+      - "Clinic visit {merchant}"
+      - "{merchant} appointment"
+      - "Health service {merchant}"
+    mixedTemplates:
+      - "Аптека payment {merchant}"
+      - "Clinic прием {merchant}"
+      - "Doctor оплата {merchant}"
+    hardNegatives:
+      - "fitness club health payment {merchant}"
+      - "pharmacy cashback adjustment {merchant}"
+
+  OTHER:
+    amountRange: [50, 60000]
+    mccCodes: ["4829", "4900", "6010", "6012", "6300", "9311"]
+    merchants:
+      - "Bank Fee"
+      - "ATM Cash"
+      - "Mobile Operator"
+      - "Gosuslugi"
+      - "Utility Provider"
+      - "Insurance Company"
+      - "Loan Payment"
+      - "Internet Provider"
+      - "ЖКХ Казань"
+      - "Налоговая Служба"
+      - "Банк Перевод"
+    aliases:
+      - "CARD2CARD"
+      - "ATM"
+      - "BANK COMMISSION"
+      - "UTILITY BILL"
+      - "MOBILE TOPUP"
+    templates:
+      - "Bank service fee {merchant}"
+      - "Cash withdrawal {merchant}"
+      - "Card transfer {merchant}"
+      - "Utility bill payment {merchant}"
+      - "Insurance payment {merchant}"
+      - "Mobile phone top up {merchant}"
+      - "Loan repayment {merchant}"
+    mixedTemplates:
+      - "Перевод card2card {merchant}"
+      - "Комиссия bank {merchant}"
+      - "Utility оплата {merchant}"
+    hardNegatives:
+      - "market transfer service {merchant}"
+      - "club monthly fee {merchant}"

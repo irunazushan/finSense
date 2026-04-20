@@ -13,7 +13,7 @@ from skl2onnx.common.data_types import FloatTensorType, StringTensorType
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -49,10 +49,14 @@ def train_model(config: TrainingConfig) -> Dict[str, str]:
     pipeline.fit(feature_frame(train_df), train_df["label"])
 
     labels = [str(label) for label in pipeline.named_steps["classifier"].classes_]
+    validation_features = feature_frame(validation_df)
+    validation_predictions = pipeline.predict(validation_features).tolist()
+    validation_confidences = pipeline.predict_proba(validation_features).max(axis=1).tolist()
     validation_metrics = evaluate_predictions(
         labels=labels,
         y_true=validation_df["label"].tolist(),
-        y_pred=pipeline.predict(feature_frame(validation_df)).tolist(),
+        y_pred=validation_predictions,
+        confidences=validation_confidences,
     )
 
     sklearn_model_path = config.artifact_dir / SKLEARN_MODEL_FILENAME
@@ -96,16 +100,28 @@ def evaluate_artifacts(config: EvaluationConfig) -> Dict[str, object]:
 
     pipeline = joblib.load(config.artifact_dir / SKLEARN_MODEL_FILENAME)
     features = feature_frame(df)
+    sklearn_probabilities = pipeline.predict_proba(features)
     sklearn_pred = pipeline.predict(features).tolist()
-    onnx_pred = predict_onnx(
+    onnx_probabilities = predict_onnx_probabilities(
         model_path=config.artifact_dir / ONNX_MODEL_FILENAME,
         features=features,
         labels=labels,
     )
+    onnx_pred = labels_from_probabilities(labels, onnx_probabilities)
 
     result = {
-        "sklearn": evaluate_predictions(labels, df["label"].tolist(), sklearn_pred),
-        "onnx": evaluate_predictions(labels, df["label"].tolist(), onnx_pred),
+        "sklearn": evaluate_predictions(
+            labels,
+            df["label"].tolist(),
+            sklearn_pred,
+            confidences=sklearn_probabilities.max(axis=1).tolist(),
+        ),
+        "onnx": evaluate_predictions(
+            labels,
+            df["label"].tolist(),
+            onnx_pred,
+            confidences=onnx_probabilities.max(axis=1).tolist(),
+        ),
     }
     metrics_path = config.artifact_dir / f"{config.split}-evaluation.json"
     write_json(metrics_path, result)
@@ -252,8 +268,7 @@ def export_onnx_model(pipeline: Pipeline, output_path: Path, target_opset: int) 
 
 def predict_onnx(model_path: Path, features: pd.DataFrame, labels: List[str]) -> List[str]:
     probabilities = predict_onnx_probabilities(model_path=model_path, features=features, labels=labels)
-    indices = np.asarray(probabilities).argmax(axis=1)
-    return [labels[int(index)] for index in indices]
+    return labels_from_probabilities(labels, probabilities)
 
 
 def predict_onnx_probabilities(model_path: Path, features: pd.DataFrame, labels: List[str]) -> np.ndarray:
@@ -286,15 +301,67 @@ def find_probability_output(outputs: List[object], labels: List[str]) -> np.ndar
     raise RuntimeError("ONNX model did not return a probability matrix")
 
 
-def evaluate_predictions(labels: List[str], y_true: List[str], y_pred: List[str]) -> Dict[str, object]:
+def evaluate_predictions(
+    labels: List[str],
+    y_true: List[str],
+    y_pred: List[str],
+    confidences: List[float] | None = None,
+) -> Dict[str, object]:
+    precision, recall, f1, support = precision_recall_fscore_support(
+        y_true,
+        y_pred,
+        labels=labels,
+        zero_division=0,
+    )
+    confidence_values = [float(value) for value in (confidences or [])]
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "macro_f1": float(f1_score(y_true, y_pred, labels=labels, average="macro", zero_division=0)),
         "weighted_f1": float(
             f1_score(y_true, y_pred, labels=labels, average="weighted", zero_division=0)
         ),
+        "per_category": {
+            label: {
+                "precision": float(precision[index]),
+                "recall": float(recall[index]),
+                "f1": float(f1[index]),
+                "support": int(support[index]),
+            }
+            for index, label in enumerate(labels)
+        },
+        "confidence": confidence_summary(confidence_values),
         "confusion_matrix": confusion_matrix(y_true, y_pred, labels=labels).tolist(),
         "labels": labels,
+    }
+
+
+def labels_from_probabilities(labels: List[str], probabilities: object) -> List[str]:
+    indices = np.asarray(probabilities).argmax(axis=1)
+    return [labels[int(index)] for index in indices]
+
+
+def confidence_summary(confidences: List[float]) -> Dict[str, float | int]:
+    if not confidences:
+        return {
+            "count": 0,
+            "mean": 0.0,
+            "min": 0.0,
+            "p50": 0.0,
+            "p90": 0.0,
+            "max": 0.0,
+            "below_0_70": 0,
+            "below_0_90": 0,
+        }
+    values = np.asarray(confidences, dtype=np.float32)
+    return {
+        "count": int(values.size),
+        "mean": float(values.mean()),
+        "min": float(values.min()),
+        "p50": float(np.quantile(values, 0.50)),
+        "p90": float(np.quantile(values, 0.90)),
+        "max": float(values.max()),
+        "below_0_70": int((values < 0.70).sum()),
+        "below_0_90": int((values < 0.90).sum()),
     }
 
 

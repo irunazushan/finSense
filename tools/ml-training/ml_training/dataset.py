@@ -2,21 +2,18 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-import sys
-import uuid
 from typing import Dict, Iterable, List
 
-from .paths import ENUM_PATH, RULES_PATH, TRANSACTION_TESTER_DIR
-
-
-if str(TRANSACTION_TESTER_DIR) not in sys.path:
-    sys.path.insert(0, str(TRANSACTION_TESTER_DIR))
-
-from generator import generate_transactions, load_category_templates  # noqa: E402
-from models import GeneratorConfig  # noqa: E402
+from .realistic_generator import (
+    BALANCED_PROFILE,
+    REALISTIC_PROFILE,
+    RealisticGenerationConfig,
+    generate_realistic_rows,
+    summarize_rows,
+    validate_rows,
+)
 
 
 CSV_COLUMNS = [
@@ -42,117 +39,72 @@ SPLIT_FILENAMES = {
 @dataclass(frozen=True)
 class DatasetExportConfig:
     output_dir: Path
+    dataset_profile: str = BALANCED_PROFILE
     train_per_category: int = 200
     validation_per_category: int = 50
     test_per_category: int = 50
-    ambiguous_ratio: float = 0.10
-    low_confidence_ratio: float = 0.20
+    train_size: int = 2000
+    validation_size: int = 500
+    test_size: int = 500
     amount_min: str = "10.00"
     amount_max: str = "5000.00"
     seed: int = 42
 
 
 def export_datasets(config: DatasetExportConfig) -> Dict[str, Dict[str, object]]:
-    templates, allowed_categories = load_category_templates(RULES_PATH, ENUM_PATH)
-    categories = [category for category in allowed_categories if category != "UNDEFINED"]
-    if not categories:
-        raise ValueError("No categories available for dataset generation")
-
     config.output_dir.mkdir(parents=True, exist_ok=True)
-    split_sizes = {
-        "train": config.train_per_category,
-        "validation": config.validation_per_category,
-        "test": config.test_per_category,
-    }
+    validate_export_config(config)
 
     summary: Dict[str, Dict[str, object]] = {}
-    for split_index, (split_name, per_category_count) in enumerate(split_sizes.items()):
-        rows = build_split_rows(
-            split_name=split_name,
-            per_category_count=per_category_count,
-            categories=categories,
-            templates=templates,
-            seed=config.seed + split_index,
-            ambiguous_ratio=config.ambiguous_ratio,
-            low_confidence_ratio=config.low_confidence_ratio,
-            amount_min=Decimal(config.amount_min),
-            amount_max=Decimal(config.amount_max),
+    for split_index, split_name in enumerate(SPLIT_FILENAMES):
+        rows = generate_realistic_rows(
+            RealisticGenerationConfig(
+                split_name=split_name,
+                dataset_profile=config.dataset_profile,
+                per_category_count=split_per_category_count(config, split_name),
+                total_count=split_total_count(config, split_name),
+                amount_min=Decimal(config.amount_min),
+                amount_max=Decimal(config.amount_max),
+                seed=config.seed + split_index,
+            )
         )
+        validate_rows(rows)
         output_path = config.output_dir / SPLIT_FILENAMES[split_name]
         write_rows(output_path, rows)
+        row_summary = summarize_rows(rows)
         summary[split_name] = {
             "path": str(output_path),
             "rows": len(rows),
+            "labels": row_summary["labels"],
+            "profiles": row_summary["profiles"],
         }
 
     return summary
 
 
-def build_split_rows(
-    split_name: str,
-    per_category_count: int,
-    categories: List[str],
-    templates: Dict[str, object],
-    seed: int,
-    ambiguous_ratio: float,
-    low_confidence_ratio: float,
-    amount_min: Decimal,
-    amount_max: Decimal,
-) -> List[Dict[str, object]]:
-    if per_category_count <= 0:
-        raise ValueError("per_category_count must be greater than 0")
+def validate_export_config(config: DatasetExportConfig) -> None:
+    if config.dataset_profile not in {BALANCED_PROFILE, REALISTIC_PROFILE}:
+        raise ValueError("dataset_profile must be 'balanced' or 'realistic'")
+    if Decimal(config.amount_min) <= 0:
+        raise ValueError("amount_min must be greater than 0")
+    if Decimal(config.amount_max) < Decimal(config.amount_min):
+        raise ValueError("amount_max must be greater than or equal to amount_min")
 
-    total = per_category_count * len(categories)
-    target_user_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"finsense:{split_name}:user:{seed}"))
-    category_counts = {category: per_category_count for category in categories}
-    result = generate_transactions(
-        GeneratorConfig(
-            bootstrap_servers="localhost:29092",
-            core_base_url="http://localhost:8080",
-            users_count=1,
-            tx_per_user=total,
-            target_user_id=target_user_id,
-            amount_min=amount_min,
-            amount_max=amount_max,
-            start_datetime=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            end_datetime=datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc),
-            category_counts=category_counts,
-            random_fill_enabled=False,
-            ambiguous_ratio=ambiguous_ratio,
-            low_confidence_ratio=low_confidence_ratio,
-            send_interval_ms=0,
-            seed=seed,
-            verify_after_send=False,
-        ),
-        templates,
-        categories,
-    )
 
-    rows: List[Dict[str, object]] = []
-    for index, transaction in enumerate(result.transactions):
-        payload = transaction.payload
-        profile = transaction.profile
-        label = "UNDEFINED" if profile == "ambiguous" else transaction.category
-        rows.append(
-            {
-                "transactionId": str(
-                    uuid.uuid5(
-                        uuid.NAMESPACE_URL,
-                        f"finsense:{split_name}:tx:{seed}:{index}",
-                    )
-                ),
-                "userId": payload["userId"],
-                "amount": payload["amount"],
-                "description": payload.get("description") or "",
-                "merchantName": payload.get("merchantName") or "",
-                "mccCode": payload.get("mccCode") or "",
-                "timestamp": payload["timestamp"],
-                "label": label,
-                "intendedCategory": transaction.category,
-                "profile": profile,
-            }
-        )
-    return rows
+def split_per_category_count(config: DatasetExportConfig, split_name: str) -> int:
+    return {
+        "train": config.train_per_category,
+        "validation": config.validation_per_category,
+        "test": config.test_per_category,
+    }[split_name]
+
+
+def split_total_count(config: DatasetExportConfig, split_name: str) -> int:
+    return {
+        "train": config.train_size,
+        "validation": config.validation_size,
+        "test": config.test_size,
+    }[split_name]
 
 
 def write_rows(output_path: Path, rows: Iterable[Dict[str, object]]) -> None:

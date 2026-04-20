@@ -50,8 +50,6 @@ def test_training_exports_loadable_onnx_and_matching_labels(workspace_tmp: Path)
             train_per_category=4,
             validation_per_category=2,
             test_per_category=2,
-            ambiguous_ratio=0.10,
-            low_confidence_ratio=0.10,
             seed=21,
         )
     )
@@ -67,6 +65,8 @@ def test_training_exports_loadable_onnx_and_matching_labels(workspace_tmp: Path)
     assert "UNDEFINED" in labels
     metrics = json.loads(Path(result["metrics_path"]).read_text(encoding="utf-8"))
     assert "accuracy" in metrics["validation"]
+    assert "per_category" in metrics["validation"]
+    assert "confidence" in metrics["validation"]
 
     evaluation = evaluate_artifacts(
         EvaluationConfig(data_dir=data_dir, artifact_dir=artifact_dir, split="test")
@@ -84,8 +84,6 @@ def test_training_and_evaluate_cli_smoke(workspace_tmp: Path) -> None:
             train_per_category=4,
             validation_per_category=2,
             test_per_category=2,
-            ambiguous_ratio=0.10,
-            low_confidence_ratio=0.10,
             seed=31,
         )
     )
