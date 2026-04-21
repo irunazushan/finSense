@@ -74,6 +74,21 @@ def export_small_realistic_dataset(path: Path, seed: int) -> None:
     )
 
 
+def export_small_balanced_mixed_dataset(path: Path, seed: int) -> None:
+    export_datasets(
+        DatasetExportConfig(
+            output_dir=path,
+            dataset_profile="balanced",
+            split_strategy="mixed",
+            train_per_category=60,
+            validation_per_category=12,
+            test_per_category=12,
+            users_per_split=18,
+            seed=seed,
+        )
+    )
+
+
 def test_training_exports_loadable_onnx_labels_and_metadata(workspace_tmp: Path) -> None:
     data_dir = workspace_tmp / "data"
     artifact_dir = workspace_tmp / "artifacts"
@@ -157,6 +172,44 @@ def test_high_amount_outlier_does_not_override_obvious_transport_signal(workspac
     assert sklearn_scores[0][1] > 0.50
     assert onnx_scores[0][0] == "TRANSPORT"
     assert onnx_scores[0][1] > 0.50
+
+
+def test_digital_subscriptions_and_low_signal_processing_regressions(workspace_tmp: Path) -> None:
+    data_dir = workspace_tmp / "data"
+    artifact_dir = workspace_tmp / "artifacts"
+    export_small_balanced_mixed_dataset(data_dir, seed=62)
+
+    train_model(TrainingConfig(data_dir=data_dir, artifact_dir=artifact_dir))
+
+    netflix_scores = predict_sklearn_scores(
+        model_path=artifact_dir / "sklearn-pipeline.joblib",
+        amount=799,
+        description="NETFLIX.COM recurring",
+        merchant_name="Netflix",
+        mcc_code="4899",
+    )
+    apple_scores = predict_onnx_scores(
+        model_path=artifact_dir / "transaction-classifier.onnx",
+        labels_path=artifact_dir / "labels.json",
+        amount=699,
+        description="APPLE.COM/BILL recurring",
+        merchant_name="Apple.com",
+        mcc_code="5817",
+    )
+    undefined_scores = predict_sklearn_scores(
+        model_path=artifact_dir / "sklearn-pipeline.joblib",
+        amount=2800,
+        description="processing center account operation REF12345",
+        merchant_name="Processing Center",
+        mcc_code="",
+    )
+
+    assert netflix_scores[0][0] == "ENTERTAINMENT"
+    assert netflix_scores[0][1] > 0.45
+    assert apple_scores[0][0] == "ENTERTAINMENT"
+    assert apple_scores[0][1] > 0.35
+    assert undefined_scores[0][0] == "UNDEFINED"
+    assert undefined_scores[0][1] > 0.45
 
 
 def test_evaluate_artifacts_records_unique_dataset_specific_reports(workspace_tmp: Path) -> None:

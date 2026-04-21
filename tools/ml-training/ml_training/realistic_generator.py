@@ -591,8 +591,23 @@ def build_undefined_transaction(
     undefined = catalog.get("undefined") or {}
     descriptions = [str(value) for value in undefined.get("descriptions") or ["transaction"]]
     merchants = [str(value) for value in undefined.get("merchants") or ["Unknown Merchant"]]
-    description = str(rng.choice(descriptions))
+    generic_descriptors = [str(value) for value in catalog.get("lowSignalDescriptors") or []]
+    payment_providers = [str(value) for value in catalog.get("paymentProviders") or []]
+    aggregators = [str(value) for value in catalog.get("aggregators") or []]
+
+    if generic_descriptors and rng.random() < 0.55:
+        description = str(rng.choice(generic_descriptors))
+    else:
+        description = str(rng.choice(descriptions))
+
     merchant_name = str(rng.choice(merchants))
+    if rng.random() < 0.38:
+        merchant_name = ""
+
+    if payment_providers and rng.random() < 0.22:
+        description = f"{rng.choice(payment_providers)} {description}"
+    if aggregators and rng.random() < 0.18:
+        description = f"{rng.choice(aggregators)} {description}"
     if rng.random() < 0.55:
         description = f"{description} {user.city}"
     if rng.random() < 0.35:

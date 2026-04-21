@@ -92,6 +92,10 @@ lowSignalDescriptors:
   - "purchase"
   - "payment"
   - "online payment"
+  - "service payment"
+  - "card payment"
+  - "merchant charge"
+  - "online charge"
   - "service transaction"
   - "banking operation"
   - "account operation"
@@ -99,6 +103,10 @@ lowSignalDescriptors:
 
 undefined:
   descriptions:
+    - "payment"
+    - "online payment"
+    - "service payment"
+    - "purchase"
     - "misc card operation"
     - "service adjustment"
     - "balance correction"
@@ -203,15 +211,15 @@ userArchetypes:
   - name: subscription_heavy
     weight: 0.12
     preferredCategories:
-      ENTERTAINMENT: 0.24
+      ENTERTAINMENT: 0.32
       FOOD_AND_DRINKS: 0.10
       TRANSPORT: 0.08
       GROCERIES: 0.10
-      RETAIL_SHOPPING: 0.12
+      RETAIL_SHOPPING: 0.08
       HEALTH: 0.07
       BANKING_AND_FEES: 0.10
-      BILLS_AND_GOVERNMENT: 0.13
-      UNDEFINED: 0.06
+      BILLS_AND_GOVERNMENT: 0.09
+      UNDEFINED: 0.04
     channelWeights:
       pos: 0.10
       ecommerce: 0.18
@@ -440,7 +448,10 @@ categories:
         - "{merchant} online shop"
         - "{merchant} web order"
       subscription:
-        - "{merchant} premium membership"
+        - "{merchant} loyalty club"
+        - "{merchant} premium delivery"
+        - "{merchant} shopping membership"
+        - "{merchant} subscription box"
     hardNegatives:
       - "shopping cashback adjustment"
       - "market data subscription"
@@ -455,7 +466,7 @@ categories:
       - { min: 150, max: 1200, weight: 0.35 }
       - { min: 1201, max: 4000, weight: 0.33 }
       - { min: 4001, max: 14000, weight: 0.32 }
-    mccCodes: ["7832", "7922", "7996", "7999", "5815"]
+    mccCodes: ["7832", "7922", "7996", "7999", "5815", "5816", "5817", "4899"]
     allowedChannels: [pos, ecommerce, subscription]
     merchantGroups:
       - name: cinema_events
@@ -463,9 +474,13 @@ categories:
         aliases: ["CINEMA", "KARO", "AFISHA", "CONCERT"]
         transliterations: ["Kino Park", "Teatr Kamala", "Koncert Hall"]
       - name: digital_media
-        merchants: ["Spotify", "Netflix", "VK Music", "Kinopoisk"]
-        aliases: ["SPOTIFY", "NETFLIX", "VKMUSIC", "KINOPOISK"]
-        transliterations: ["Kinopoisk", "Vee Kay Music", "Netfliks"]
+        merchants: ["Spotify", "Netflix", "VK Music", "Kinopoisk", "YouTube Premium", "Apple Music", "Yandex Plus", "Okko", "IVI", "Wink"]
+        aliases: ["SPOTIFY", "NETFLIX", "NETFLIX.COM", "VKMUSIC", "KINOPOISK", "YOUTUBE PREM", "APPLE MUSIC", "YANDEX PLUS", "OKKO", "IVI", "WINK"]
+        transliterations: ["Kinopoisk", "Vee Kay Music", "Netfliks", "Yandeks Plus", "Apl Music", "Yutub Premium"]
+      - name: app_store_media
+        merchants: ["Apple.com", "Apple Services", "App Store", "Google Play", "Google YouTube"]
+        aliases: ["APPLE.COM/BILL", "APPLE SERVICES", "APP STORE", "GOOGLE PLAY", "GOOGLE*YOUTUBE"]
+        transliterations: ["Apple Kom Bill", "Gugl Plei", "Apl Services"]
       - name: gaming
         merchants: ["Steam", "PlayStation", "Xbox", "Epic Games"]
         aliases: ["STEAM", "PS STORE", "XBOX", "EPIC"]
@@ -479,9 +494,16 @@ categories:
         - "{merchant} online service"
         - "{merchant} digital order"
         - "{merchant} event booking"
+        - "{merchant} streaming service"
+        - "{merchant} premium access"
       subscription:
         - "{merchant} subscription"
         - "{merchant} monthly membership"
+        - "{merchant} recurring"
+        - "{merchant} auto renewal"
+        - "{merchant} streaming subscription"
+        - "{merchant} premium plan"
+        - "{merchant} monthly plan"
     hardNegatives:
       - "bar inventory purchase"
       - "club management fee"
@@ -606,7 +628,9 @@ categories:
         - "{merchant} recurring bill"
       ecommerce:
         - "{merchant} online cabinet"
-        - "{merchant} service payment"
+        - "{merchant} utility cabinet"
+        - "{merchant} telecom cabinet"
+        - "{merchant} invoice payment"
     hardNegatives:
       - "government exam marketplace"
       - "insurance cashback bonus"
