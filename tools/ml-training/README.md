@@ -13,16 +13,16 @@ pip install -r requirements.txt
 
 ## Workflow
 
-Export deterministic balanced datasets for training:
+Export a large realistic holdout dataset for training and evaluation:
 
 ```bash
-python export_dataset.py --output-dir data
+python export_dataset.py --profile realistic --split-strategy holdout_merchants --output-dir data
 ```
 
-Export production-like imbalanced datasets for final evaluation:
+Export a smaller balanced dataset for debugging:
 
 ```bash
-python export_dataset.py --profile realistic --output-dir data-realistic
+python export_dataset.py --profile balanced --split-strategy mixed --output-dir data-balanced
 ```
 
 Train and export artifacts:
@@ -37,10 +37,10 @@ Evaluate sklearn and ONNX predictions:
 python evaluate.py --data-dir data --artifact-dir artifacts --split test
 ```
 
-Evaluate the trained model against the realistic distribution:
+Evaluate the trained model against the balanced debug dataset:
 
 ```bash
-python evaluate.py --data-dir data-realistic --artifact-dir artifacts --split test
+python evaluate.py --data-dir data-balanced --artifact-dir artifacts --split test
 ```
 
 Predict one manual transaction with the ONNX artifact:
@@ -59,16 +59,32 @@ Generated datasets and model artifacts are ignored by git.
 
 ## Dataset Source
 
-Datasets are generated from `data_sources/transaction_catalog.yaml`, not from
-`classifier-service/classifier-rules.yaml`. The catalog includes merchant names,
-aliases, MCC codes, text templates, payment-provider wrappers, noisy terminal
-text, mixed Russian/English descriptions, hard negatives, explicit `OTHER`
-examples, and explicit `UNDEFINED` low-signal transactions.
+Datasets are generated from `data_sources/transaction_catalog.yaml`, then aligned
+to the runtime contract in `classifier-service/classifier-rules.yaml`. The
+catalog now models user archetypes, city affinity, channel-specific templates,
+merchant holdouts, payment-provider wrappers, noisy terminal text, mixed
+keyboard and transliterated merchant variants, refunds/reversals/installments,
+recurring/autopay flows, hard negatives, and explicit `UNDEFINED` low-signal
+transactions.
 
 Available export profiles:
 
-- `balanced`: equal rows for every output label; best for baseline training.
-- `realistic`: production-like class distribution; best for final evaluation.
+- `balanced`: equal rows for every output label; best for debugging.
+- `realistic`: production-like class distribution with multi-user behavior and
+  unseen-merchant evaluation.
+
+Current labels:
+
+- `FOOD_AND_DRINKS`
+- `TRANSPORT`
+- `GROCERIES`
+- `RETAIL_SHOPPING`
+- `ENTERTAINMENT`
+- `HEALTH`
+- `BANKING_AND_FEES`
+- `BILLS_AND_GOVERNMENT`
+- `UNDEFINED`
 
 Metrics include accuracy, macro F1, weighted F1, per-category precision/recall/F1,
-confusion matrix, and confidence distribution.
+confusion matrix, confidence distribution, and dataset metadata. Evaluation
+reports include dataset identity in the filename to avoid overwriting.

@@ -29,6 +29,19 @@ from ml_training.model import (  # noqa: E402
 )
 
 
+EXPECTED_LABELS = [
+    "BANKING_AND_FEES",
+    "BILLS_AND_GOVERNMENT",
+    "ENTERTAINMENT",
+    "FOOD_AND_DRINKS",
+    "GROCERIES",
+    "HEALTH",
+    "RETAIL_SHOPPING",
+    "TRANSPORT",
+    "UNDEFINED",
+]
+
+
 @pytest.fixture()
 def workspace_tmp(request) -> Path:
     root = ML_TRAINING_DIR / ".test-output" / request.node.name
@@ -41,18 +54,26 @@ def workspace_tmp(request) -> Path:
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_training_exports_loadable_onnx_and_matching_labels(workspace_tmp: Path) -> None:
-    data_dir = workspace_tmp / "data"
-    artifact_dir = workspace_tmp / "artifacts"
+def export_small_realistic_dataset(path: Path, seed: int) -> None:
     export_datasets(
         DatasetExportConfig(
-            output_dir=data_dir,
-            train_per_category=4,
-            validation_per_category=2,
-            test_per_category=2,
-            seed=21,
+            output_dir=path,
+            dataset_profile="realistic",
+            split_strategy="holdout_merchants",
+            train_size=320,
+            validation_size=90,
+            test_size=90,
+            users_per_split=14,
+            holdout_ratio=0.34,
+            seed=seed,
         )
     )
+
+
+def test_training_exports_loadable_onnx_labels_and_metadata(workspace_tmp: Path) -> None:
+    data_dir = workspace_tmp / "data"
+    artifact_dir = workspace_tmp / "artifacts"
+    export_small_realistic_dataset(data_dir, seed=21)
 
     result = train_model(TrainingConfig(data_dir=data_dir, artifact_dir=artifact_dir))
 
@@ -60,33 +81,64 @@ def test_training_exports_loadable_onnx_and_matching_labels(workspace_tmp: Path)
     assert Path(result["onnx_model_path"]).exists()
     assert Path(result["labels_path"]).exists()
     assert Path(result["metrics_path"]).exists()
+    assert Path(result["metadata_path"]).exists()
 
     labels = load_labels(Path(result["labels_path"]))
-    assert "UNDEFINED" in labels
+    assert labels == EXPECTED_LABELS
     metrics = json.loads(Path(result["metrics_path"]).read_text(encoding="utf-8"))
+    assert metrics["dataset"]["profile"] == "realistic"
     assert "accuracy" in metrics["validation"]
     assert "per_category" in metrics["validation"]
     assert "confidence" in metrics["validation"]
 
-    evaluation = evaluate_artifacts(
-        EvaluationConfig(data_dir=data_dir, artifact_dir=artifact_dir, split="test")
+    model_metadata = json.loads(Path(result["metadata_path"]).read_text(encoding="utf-8"))
+    assert model_metadata["training_data"]["split_strategy"] == "holdout_merchants"
+    assert model_metadata["training_data"]["labels"] == EXPECTED_LABELS
+
+
+def test_evaluate_artifacts_records_unique_dataset_specific_reports(workspace_tmp: Path) -> None:
+    train_dir = workspace_tmp / "train-data"
+    realistic_eval_dir = workspace_tmp / "realistic-eval"
+    balanced_eval_dir = workspace_tmp / "balanced-eval"
+    artifact_dir = workspace_tmp / "artifacts"
+
+    export_small_realistic_dataset(train_dir, seed=31)
+    export_small_realistic_dataset(realistic_eval_dir, seed=32)
+    export_datasets(
+        DatasetExportConfig(
+            output_dir=balanced_eval_dir,
+            dataset_profile="balanced",
+            train_per_category=10,
+            validation_per_category=4,
+            test_per_category=4,
+            users_per_split=10,
+            split_strategy="mixed",
+            seed=33,
+        )
     )
-    assert evaluation["sklearn"]["labels"] == evaluation["onnx"]["labels"]
-    assert len(evaluation["onnx"]["confusion_matrix"]) == len(labels)
+
+    train_model(TrainingConfig(data_dir=train_dir, artifact_dir=artifact_dir))
+    realistic_eval = evaluate_artifacts(
+        EvaluationConfig(data_dir=realistic_eval_dir, artifact_dir=artifact_dir, split="test")
+    )
+    balanced_eval = evaluate_artifacts(
+        EvaluationConfig(data_dir=balanced_eval_dir, artifact_dir=artifact_dir, split="test")
+    )
+
+    assert realistic_eval["metrics_path"] != balanced_eval["metrics_path"]
+    assert Path(realistic_eval["metrics_path"]).exists()
+    assert Path(balanced_eval["metrics_path"]).exists()
+    assert realistic_eval["dataset"]["profile"] == "realistic"
+    assert balanced_eval["dataset"]["profile"] == "balanced"
+
+    onnx_gap = abs(realistic_eval["sklearn"]["accuracy"] - realistic_eval["onnx"]["accuracy"])
+    assert onnx_gap <= 0.08
 
 
 def test_training_and_evaluate_cli_smoke(workspace_tmp: Path) -> None:
     data_dir = workspace_tmp / "data"
     artifact_dir = workspace_tmp / "artifacts"
-    export_datasets(
-        DatasetExportConfig(
-            output_dir=data_dir,
-            train_per_category=4,
-            validation_per_category=2,
-            test_per_category=2,
-            seed=31,
-        )
-    )
+    export_small_realistic_dataset(data_dir, seed=41)
 
     train_result = subprocess.run(
         [
@@ -120,7 +172,8 @@ def test_training_and_evaluate_cli_smoke(workspace_tmp: Path) -> None:
         text=True,
     )
     assert "onnx accuracy:" in evaluate_result.stdout
-    assert (artifact_dir / "test-evaluation.json").exists()
+    test_reports = list(artifact_dir.glob("test-evaluation-*.json"))
+    assert test_reports
 
     predict_result = subprocess.run(
         [
@@ -131,11 +184,11 @@ def test_training_and_evaluate_cli_smoke(workspace_tmp: Path) -> None:
             "--amount",
             "350",
             "--description",
-            "coffee payment",
+            "grocery delivery samokat",
             "--merchant-name",
-            "Starbucks Cafe",
+            "Samokat",
             "--mcc-code",
-            "5812",
+            "5411",
         ],
         check=True,
         capture_output=True,

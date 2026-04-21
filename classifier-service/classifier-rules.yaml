@@ -1,107 +1,149 @@
 # classifier-rules.yaml
 
-# MCC-коды — точное соответствие
 mcc:
-  # Код: категория
-  5812: FOOD_AND_DRINKS  # рестораны
-  5813: FOOD_AND_DRINKS  # бары
-  4121: TRANSPORT        # такси
-  4111: TRANSPORT        # местный транспорт
-  5912: HEALTH           # аптеки
-  7832: ENTERTAINMENT    # кино
-  7922: ENTERTAINMENT    # театры
-  5651: SHOPPING         # одежда
-  5311: SHOPPING         # универмаги
+  5812: FOOD_AND_DRINKS
+  5813: FOOD_AND_DRINKS
+  5814: FOOD_AND_DRINKS
+  5499: FOOD_AND_DRINKS
+  4121: TRANSPORT
+  4111: TRANSPORT
+  4131: TRANSPORT
+  4789: TRANSPORT
+  5411: GROCERIES
+  5422: GROCERIES
+  5441: GROCERIES
+  5311: RETAIL_SHOPPING
+  5651: RETAIL_SHOPPING
+  5732: RETAIL_SHOPPING
+  5942: RETAIL_SHOPPING
+  7832: ENTERTAINMENT
+  7922: ENTERTAINMENT
+  7996: ENTERTAINMENT
+  7999: ENTERTAINMENT
+  5912: HEALTH
+  8011: HEALTH
+  8021: HEALTH
+  8099: HEALTH
+  6010: BANKING_AND_FEES
+  6011: BANKING_AND_FEES
+  6012: BANKING_AND_FEES
+  4829: BANKING_AND_FEES
+  4900: BILLS_AND_GOVERNMENT
+  6300: BILLS_AND_GOVERNMENT
+  9311: BILLS_AND_GOVERNMENT
+  9399: BILLS_AND_GOVERNMENT
+  4814: BILLS_AND_GOVERNMENT
 
-# Ключевые слова для description и merchant name
 keywords:
   - category: FOOD_AND_DRINKS
     words:
-      - кофе
-      - кофейня
-      - ресторан
-      - кафе
-      - бургер
-      - пицца
-      - суши
-      - столовая
-      - starbucks
       - coffee
-      - restaurant
       - cafe
-    
+      - restaurant
+      - pizza
+      - burger
+      - sushi
+      - lunch
+      - starbucks
+      - dodo
+      - teremok
+
   - category: TRANSPORT
     words:
-      - такси
-      - метро
-      - автобус
-      - троллейбус
-      - трамвай
-      - uber
-      - yandex taxi
-      - яндекс.такси
-      - транспорт
       - taxi
+      - metro
       - bus
       - train
-    
-  - category: SHOPPING
+      - ride
+      - trip
+      - aeroexpress
+      - yandex go
+      - uber
+      - ticket
+
+  - category: GROCERIES
     words:
-      - магазин
-      - супермаркет
-      - продукт
-      - ozon
-      - wildberries
-      - amazon
-      - магнит
-      - пятерочка
-      - перекресток
-      - ашан
-      - лента
-      - shop
-      - store
+      - grocery
       - supermarket
-    
+      - pyaterochka
+      - magnit
+      - perekrestok
+      - samokat
+      - lavka
+      - fresh
+      - food market
+      - vkusvill
+
+  - category: RETAIL_SHOPPING
+    words:
+      - marketplace
+      - online shop
+      - order
+      - wildberries
+      - ozon
+      - amazon
+      - mvideo
+      - dns
+      - zara
+      - shop
+
   - category: ENTERTAINMENT
     words:
-      - кино
-      - кинотеатр
-      - театр
-      - концерт
-      - клуб
-      - бар
-      - караоке
       - cinema
-      - theater
       - concert
-      - club
-    
+      - theater
+      - subscription
+      - spotify
+      - netflix
+      - kinopoisk
+      - steam
+      - ticket
+      - afisha
+
   - category: HEALTH
     words:
-      - аптека
-      - больница
-      - клиника
-      - врач
-      - стоматолог
-      - парикмахерская
-      - спа
-      - салон
-      - косметолог
-      - массаж
       - pharmacy
-      - hospital
+      - apteka
       - clinic
       - doctor
-      - dentist
-      - hairdresser
-      - spa
+      - dental
+      - invitro
+      - helix
+      - medical
+      - appointment
+      - health
 
-# Настройки confidence
+  - category: BANKING_AND_FEES
+    words:
+      - cash withdrawal
+      - atm
+      - commission
+      - transfer
+      - sbp
+      - loan repayment
+      - broker
+      - fee
+      - p2p
+      - card2card
+
+  - category: BILLS_AND_GOVERNMENT
+    words:
+      - utility
+      - bill
+      - gosuslugi
+      - tax
+      - insurance
+      - internet
+      - mobile
+      - telecom
+      - government
+      - rostelecom
+
 confidence:
-  mcc_base_confirmed: 0.95   # если MCC подтвержден текстом той же категории
-  mcc_base_unconfirmed: 0.75 # если MCC есть, но текст не подтверждает категорию
-  keyword_base: 0.85         # базовый для ключевых слов
-  boost_per_match: 0.05      # добавка за каждый матч
-  contradiction_penalty: 0.07 # штраф за сильные совпадения других категорий
-  mcc_min: 0.55              # нижняя граница уверенности при наличии MCC
-  max: 0.99                  # максимум
+  mcc_base_confirmed: 0.95
+  mcc_base_unconfirmed: 0.75
+  keyword_base: 0.85
+  boost_per_match: 0.05
+  contradiction_penalty: 0.07
+  mcc_min: 0.55
+  max: 0.99

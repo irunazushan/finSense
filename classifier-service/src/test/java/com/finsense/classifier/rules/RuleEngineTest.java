@@ -24,16 +24,23 @@ class RuleEngineTest {
         Map<String, TransactionCategory> mccRules = new LinkedHashMap<>();
         mccRules.put("5812", TransactionCategory.FOOD_AND_DRINKS);
         mccRules.put("4111", TransactionCategory.TRANSPORT);
+        mccRules.put("5411", TransactionCategory.GROCERIES);
 
         Map<TransactionCategory, List<String>> keywordRules = new LinkedHashMap<>();
         keywordRules.put(TransactionCategory.FOOD_AND_DRINKS, List.of("coffee", "restaurant"));
         keywordRules.put(TransactionCategory.TRANSPORT, List.of("taxi", "metro", "train"));
-        keywordRules.put(TransactionCategory.SHOPPING, List.of("store", "market"));
+        keywordRules.put(TransactionCategory.RETAIL_SHOPPING, List.of("store", "marketplace"));
+        keywordRules.put(TransactionCategory.GROCERIES, List.of("grocery", "supermarket"));
 
         RuleSet ruleSet = new RuleSet(
             mccRules,
             keywordRules,
-            List.of(TransactionCategory.FOOD_AND_DRINKS, TransactionCategory.TRANSPORT, TransactionCategory.SHOPPING),
+            List.of(
+                TransactionCategory.FOOD_AND_DRINKS,
+                TransactionCategory.TRANSPORT,
+                TransactionCategory.GROCERIES,
+                TransactionCategory.RETAIL_SHOPPING
+            ),
             new RuleSet.ConfidenceConfig(0.95, 0.75, 0.85, 0.05, 0.07, 0.55, 0.99)
         );
 

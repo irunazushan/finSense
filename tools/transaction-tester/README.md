@@ -56,7 +56,7 @@ Validation:
 - each ratio must be in `[0.0, 1.0]`
 - `ambiguous_ratio + low_confidence_ratio <= 1.0`
 - remaining share is generated as `normal`
-- if a selected category has no MCC templates (for example `OTHER`), requested `low_confidence` events for it fall back to `normal` and a warning is shown in the summary
+- if a selected category has no MCC templates in the loaded rules, requested `low_confidence` events fall back to `normal` and a warning is shown in the summary
 
 ## Local Run
 

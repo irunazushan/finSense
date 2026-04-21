@@ -1,0 +1,44 @@
+{
+  "dataset_id": "balanced-mixed-s42-u48-h0_18",
+  "profile": "balanced",
+  "split_strategy": "mixed",
+  "seed": 42,
+  "users_per_split": 48,
+  "holdout_ratio": 0.18,
+  "labels": [
+    "BANKING_AND_FEES",
+    "BILLS_AND_GOVERNMENT",
+    "ENTERTAINMENT",
+    "FOOD_AND_DRINKS",
+    "GROCERIES",
+    "HEALTH",
+    "RETAIL_SHOPPING",
+    "TRANSPORT",
+    "UNDEFINED"
+  ],
+  "sizes": {
+    "train": 2700,
+    "validation": 675,
+    "test": 675
+  },
+  "balanced_counts": {
+    "train": 300,
+    "validation": 75,
+    "test": 75
+  },
+  "config": {
+    "dataset_profile": "balanced",
+    "split_strategy": "mixed",
+    "train_per_category": 300,
+    "validation_per_category": 75,
+    "test_per_category": 75,
+    "train_size": 20000,
+    "validation_size": 5000,
+    "test_size": 5000,
+    "amount_min": "10.00",
+    "amount_max": "50000.00",
+    "users_per_split": 48,
+    "holdout_ratio": 0.18,
+    "seed": 42
+  }
+}

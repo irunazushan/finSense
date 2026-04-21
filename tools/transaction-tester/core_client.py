@@ -39,10 +39,33 @@ def fetch_user_transactions_page(
     session: Optional[object] = None,
     timeout_seconds: int = 10,
 ) -> List[TransactionRecord]:
-    del session  # kept for backward compatibility of call sites
-
     params = build_transaction_query_params(filters)
     full_url, request_path, parsed = _build_request_target(core_base_url, user_id, params)
+
+    if session is not None and hasattr(session, "get"):
+        try:
+            response = session.get(full_url, params=params, timeout=timeout_seconds)
+            response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"Core API error HTTP: {exc}") from exc
+
+        response_text = (getattr(response, "text", "") or "").strip()
+        if not response_text:
+            raise RuntimeError(
+                "Core API returned empty response "
+                f"(HTTP {getattr(response, 'status_code', '?')}, page={max(0, filters.page)}, "
+                f"size={max(1, min(200, filters.size))}, url={full_url})"
+            )
+        try:
+            items = response.json()
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(
+                f"Core API returned non-JSON response (HTTP {getattr(response, 'status_code', '?')}): "
+                f"{_text_snippet(response_text)}"
+            ) from exc
+        if not isinstance(items, list):
+            raise RuntimeError("Unexpected core-service response: expected a JSON array")
+        return [_to_transaction_record(item) for item in items]
 
     try:
         connection = _new_connection(parsed, timeout_seconds)
@@ -281,4 +304,3 @@ def _new_connection(parsed_url, timeout_seconds: int):
     if parsed_url.scheme == "https":
         return http.client.HTTPSConnection(host, port, timeout=timeout_seconds)
     return http.client.HTTPConnection(host, port, timeout=timeout_seconds)
-

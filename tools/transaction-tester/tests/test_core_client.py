@@ -70,7 +70,7 @@ def make_record(
         "mccCode": mcc,
         "transactionDate": "2026-03-01T10:00:00Z",
         "status": "CLASSIFIED",
-        "category": "SHOPPING",
+        "category": "RETAIL_SHOPPING",
         "classifierSource": "ML",
         "classifierConfidence": 0.95,
         "classifiedAt": "2026-03-01T10:00:01Z",
@@ -79,7 +79,7 @@ def make_record(
 
 def test_build_transaction_query_params_includes_filters() -> None:
     filters = ServerTransactionFilters(
-        category="SHOPPING",
+        category="RETAIL_SHOPPING",
         status="CLASSIFIED",
         from_datetime=datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc),
         to_datetime=datetime(2026, 3, 6, 23, 59, tzinfo=timezone.utc),
@@ -88,7 +88,7 @@ def test_build_transaction_query_params_includes_filters() -> None:
     )
 
     params = build_transaction_query_params(filters)
-    assert params["category"] == "SHOPPING"
+    assert params["category"] == "RETAIL_SHOPPING"
     assert params["status"] == "CLASSIFIED"
     assert params["from"] == "2026-03-01T00:00:00Z"
     assert params["to"] == "2026-03-06T23:59:00Z"

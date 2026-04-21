@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Dict, List, Tuple
 
 import joblib
@@ -17,6 +18,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precisio
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+from .dataset import load_export_metadata
 
 MISSING_MCC_TOKEN = "__MISSING_MCC__"
 SKLEARN_MODEL_FILENAME = "sklearn-pipeline.joblib"
@@ -45,6 +47,7 @@ def train_model(config: TrainingConfig) -> Dict[str, str]:
 
     train_df = load_dataset(config.data_dir / "train.csv")
     validation_df = load_dataset(config.data_dir / "validation.csv")
+    dataset_metadata = load_export_metadata(config.data_dir)
     pipeline = build_pipeline()
     pipeline.fit(feature_frame(train_df), train_df["label"])
 
@@ -71,6 +74,7 @@ def train_model(config: TrainingConfig) -> Dict[str, str]:
     write_json(
         metrics_path,
         {
+            "dataset": dataset_metadata,
             "validation": validation_metrics,
         },
     )
@@ -81,6 +85,7 @@ def train_model(config: TrainingConfig) -> Dict[str, str]:
             "inputs": ["text", "mccCode", "amount"],
             "missing_mcc_token": MISSING_MCC_TOKEN,
             "target_opset": config.target_opset,
+            "training_data": dataset_metadata,
         },
     )
 
@@ -97,6 +102,7 @@ def evaluate_artifacts(config: EvaluationConfig) -> Dict[str, object]:
     split_path = config.data_dir / f"{config.split}.csv"
     df = load_dataset(split_path)
     labels = load_labels(config.artifact_dir / LABELS_FILENAME)
+    dataset_metadata = load_export_metadata(config.data_dir)
 
     pipeline = joblib.load(config.artifact_dir / SKLEARN_MODEL_FILENAME)
     features = feature_frame(df)
@@ -110,6 +116,7 @@ def evaluate_artifacts(config: EvaluationConfig) -> Dict[str, object]:
     onnx_pred = labels_from_probabilities(labels, onnx_probabilities)
 
     result = {
+        "dataset": dataset_metadata,
         "sklearn": evaluate_predictions(
             labels,
             df["label"].tolist(),
@@ -123,7 +130,8 @@ def evaluate_artifacts(config: EvaluationConfig) -> Dict[str, object]:
             confidences=onnx_probabilities.max(axis=1).tolist(),
         ),
     }
-    metrics_path = config.artifact_dir / f"{config.split}-evaluation.json"
+    dataset_suffix = safe_artifact_suffix(dataset_metadata.get("dataset_id") or config.data_dir.name)
+    metrics_path = config.artifact_dir / f"{config.split}-evaluation-{dataset_suffix}.json"
     write_json(metrics_path, result)
     result["metrics_path"] = str(metrics_path)
     return result
@@ -387,3 +395,9 @@ def write_json(path: Path, document: object) -> None:
     with path.open("w", encoding="utf-8") as file:
         json.dump(document, file, ensure_ascii=False, indent=2)
         file.write("\n")
+
+
+def safe_artifact_suffix(value: object) -> str:
+    raw = str(value or "dataset")
+    sanitized = re.sub(r"[^a-zA-Z0-9._-]+", "-", raw).strip("-").lower()
+    return sanitized or "dataset"

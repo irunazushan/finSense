@@ -1,286 +1,617 @@
 distributions:
   realistic:
-    SHOPPING: 0.35
-    FOOD_AND_DRINKS: 0.25
-    TRANSPORT: 0.15
+    FOOD_AND_DRINKS: 0.18
+    TRANSPORT: 0.14
+    GROCERIES: 0.18
+    RETAIL_SHOPPING: 0.18
+    ENTERTAINMENT: 0.08
     HEALTH: 0.08
-    ENTERTAINMENT: 0.07
-    OTHER: 0.07
+    BANKING_AND_FEES: 0.08
+    BILLS_AND_GOVERNMENT: 0.05
     UNDEFINED: 0.03
 
-profileWeights:
-  clean: 0.28
-  noisy_text: 0.14
-  missing_mcc: 0.10
-  wrong_mcc: 0.08
-  payment_provider: 0.14
-  mixed_language: 0.10
-  short_description: 0.06
-  merchant_only: 0.04
-  description_only: 0.04
-  hard_negative: 0.02
+modifierWeights:
+  channels:
+    pos: 0.33
+    ecommerce: 0.24
+    subscription: 0.08
+    p2p: 0.08
+    billpay: 0.12
+    atm: 0.05
+    autopay: 0.10
+  states:
+    normal: 0.72
+    recurring: 0.08
+    refund: 0.06
+    reversal: 0.03
+    installment: 0.06
+    partial_capture: 0.05
+  mccModes:
+    correct: 0.72
+    missing: 0.12
+    wrong: 0.08
+    aggregator: 0.08
+  noise:
+    clean: 0.24
+    payment_provider: 0.14
+    acquirer_prefix: 0.10
+    city_terminal: 0.10
+    transliterated_merchant: 0.08
+    mixed_keyboard: 0.05
+    truncated_tokens: 0.07
+    invoice_suffix: 0.07
+    masked_card_tail: 0.05
+    stale_alias: 0.05
+    merchant_only: 0.03
+    description_only: 0.02
 
 paymentProviders:
   - "YANDEX PAY"
   - "TINKOFF PAY"
   - "SBERPAY"
+  - "MIR PAY"
   - "APPLE.COM/BILL"
   - "GOOGLE PAY"
-  - "MIR PAY"
+  - "SBP QR"
   - "PAYMENT GATEWAY"
+
+acquirers:
+  - "ALFA ACQ"
+  - "SBER ACQ"
+  - "VTB ACQ"
+  - "TINKOFF ACQ"
+  - "PSB ACQ"
+
+aggregators:
+  - "ROBOKASSA"
+  - "CLOUDPAYMENTS"
+  - "YOOKASSA"
+  - "ASSIST"
+  - "UNITPAY"
 
 cities:
   - MOSCOW
-  - KAZAN
   - SPB
-  - INNOPOLIS
+  - KAZAN
+  - YEKATERINBURG
+  - NOVOSIBIRSK
   - UFA
   - SAMARA
+  - KRASNODAR
   - ONLINE
 
 unknownMccCodes:
   - "0000"
+  - "4829"
   - "5999"
   - "7299"
   - "8999"
 
+lowSignalDescriptors:
+  - "card operation"
+  - "purchase"
+  - "payment"
+  - "online payment"
+  - "service transaction"
+  - "banking operation"
+  - "account operation"
+  - "misc adjustment"
+
 undefined:
   descriptions:
-    - "card operation"
-    - "misc payment"
+    - "misc card operation"
     - "service adjustment"
     - "balance correction"
-    - "transaction"
+    - "general payment"
     - "account operation"
-    - "unknown card payment"
-    - "general transfer"
+    - "unknown online charge"
+    - "transaction review"
+    - "manual processing"
   merchants:
     - "Unknown Merchant"
     - "Card Terminal"
-    - "Online Gateway"
-    - "Payment Service"
-    - "Generic POS"
+    - "Payment Gateway"
+    - "Online Service"
+    - "Processing Center"
+
+userArchetypes:
+  - name: commuter
+    weight: 0.18
+    preferredCategories:
+      TRANSPORT: 0.30
+      FOOD_AND_DRINKS: 0.20
+      GROCERIES: 0.12
+      RETAIL_SHOPPING: 0.10
+      ENTERTAINMENT: 0.08
+      HEALTH: 0.05
+      BANKING_AND_FEES: 0.08
+      BILLS_AND_GOVERNMENT: 0.04
+      UNDEFINED: 0.03
+    channelWeights:
+      pos: 0.42
+      ecommerce: 0.12
+      subscription: 0.04
+      p2p: 0.08
+      billpay: 0.08
+      atm: 0.10
+      autopay: 0.16
+    cityWeights:
+      MOSCOW: 0.35
+      SPB: 0.20
+      KAZAN: 0.12
+      YEKATERINBURG: 0.08
+      ONLINE: 0.25
+    amountMultiplier: [0.75, 1.10]
+
+  - name: family_shopper
+    weight: 0.22
+    preferredCategories:
+      GROCERIES: 0.28
+      RETAIL_SHOPPING: 0.22
+      FOOD_AND_DRINKS: 0.10
+      TRANSPORT: 0.10
+      ENTERTAINMENT: 0.07
+      HEALTH: 0.07
+      BANKING_AND_FEES: 0.08
+      BILLS_AND_GOVERNMENT: 0.05
+      UNDEFINED: 0.03
+    channelWeights:
+      pos: 0.34
+      ecommerce: 0.22
+      subscription: 0.03
+      p2p: 0.06
+      billpay: 0.10
+      atm: 0.05
+      autopay: 0.20
+    cityWeights:
+      MOSCOW: 0.22
+      SPB: 0.14
+      KAZAN: 0.10
+      UFA: 0.08
+      SAMARA: 0.08
+      ONLINE: 0.38
+    amountMultiplier: [0.90, 1.30]
+
+  - name: heavy_ecommerce
+    weight: 0.18
+    preferredCategories:
+      RETAIL_SHOPPING: 0.33
+      GROCERIES: 0.14
+      FOOD_AND_DRINKS: 0.08
+      TRANSPORT: 0.06
+      ENTERTAINMENT: 0.12
+      HEALTH: 0.05
+      BANKING_AND_FEES: 0.08
+      BILLS_AND_GOVERNMENT: 0.08
+      UNDEFINED: 0.06
+    channelWeights:
+      pos: 0.08
+      ecommerce: 0.52
+      subscription: 0.12
+      p2p: 0.08
+      billpay: 0.06
+      atm: 0.02
+      autopay: 0.12
+    cityWeights:
+      MOSCOW: 0.20
+      SPB: 0.15
+      KAZAN: 0.10
+      NOVOSIBIRSK: 0.08
+      ONLINE: 0.47
+    amountMultiplier: [0.95, 1.45]
+
+  - name: subscription_heavy
+    weight: 0.12
+    preferredCategories:
+      ENTERTAINMENT: 0.24
+      FOOD_AND_DRINKS: 0.10
+      TRANSPORT: 0.08
+      GROCERIES: 0.10
+      RETAIL_SHOPPING: 0.12
+      HEALTH: 0.07
+      BANKING_AND_FEES: 0.10
+      BILLS_AND_GOVERNMENT: 0.13
+      UNDEFINED: 0.06
+    channelWeights:
+      pos: 0.10
+      ecommerce: 0.18
+      subscription: 0.34
+      p2p: 0.05
+      billpay: 0.08
+      atm: 0.01
+      autopay: 0.24
+    cityWeights:
+      MOSCOW: 0.18
+      SPB: 0.18
+      KAZAN: 0.07
+      ONLINE: 0.57
+    amountMultiplier: [0.80, 1.20]
+
+  - name: cash_and_fees
+    weight: 0.12
+    preferredCategories:
+      BANKING_AND_FEES: 0.28
+      BILLS_AND_GOVERNMENT: 0.18
+      TRANSPORT: 0.12
+      FOOD_AND_DRINKS: 0.10
+      GROCERIES: 0.10
+      RETAIL_SHOPPING: 0.08
+      ENTERTAINMENT: 0.04
+      HEALTH: 0.05
+      UNDEFINED: 0.05
+    channelWeights:
+      pos: 0.18
+      ecommerce: 0.06
+      subscription: 0.02
+      p2p: 0.12
+      billpay: 0.16
+      atm: 0.26
+      autopay: 0.20
+    cityWeights:
+      MOSCOW: 0.16
+      SPB: 0.12
+      UFA: 0.10
+      SAMARA: 0.10
+      ONLINE: 0.52
+    amountMultiplier: [0.70, 1.25]
+
+  - name: healthcare_focus
+    weight: 0.10
+    preferredCategories:
+      HEALTH: 0.30
+      GROCERIES: 0.12
+      RETAIL_SHOPPING: 0.10
+      FOOD_AND_DRINKS: 0.10
+      TRANSPORT: 0.08
+      ENTERTAINMENT: 0.05
+      BANKING_AND_FEES: 0.10
+      BILLS_AND_GOVERNMENT: 0.10
+      UNDEFINED: 0.05
+    channelWeights:
+      pos: 0.26
+      ecommerce: 0.20
+      subscription: 0.06
+      p2p: 0.04
+      billpay: 0.12
+      atm: 0.04
+      autopay: 0.28
+    cityWeights:
+      MOSCOW: 0.22
+      SPB: 0.14
+      KAZAN: 0.10
+      KRASNODAR: 0.08
+      ONLINE: 0.46
+    amountMultiplier: [0.95, 1.60]
 
 categories:
   FOOD_AND_DRINKS:
-    amountRange: [80, 4500]
-    mccCodes: ["5812", "5813", "5814"]
-    merchants:
-      - "Starbucks"
-      - "Surf Coffee"
-      - "Dodo Pizza"
-      - "Burger King"
-      - "KFC"
-      - "Teremok"
-      - "Shokoladnitsa"
-      - "Coffee Like"
-      - "Sushi Market"
-      - "Cafe Romashka"
-      - "Local Bakery"
-      - "Столовая Университет"
-      - "Кофейня Утро"
-      - "Ресторан Волга"
-    aliases:
-      - "SBX COFFEE"
-      - "DODO*PIZZA"
-      - "KAFE ROMASHKA"
-      - "COFFEE SHOP"
-      - "RESTORAN"
-    templates:
-      - "Card purchase {merchant}"
-      - "POS terminal {merchant}"
-      - "{merchant} online order"
-      - "Payment at {merchant}"
-      - "Food delivery {merchant}"
-      - "Lunch payment {merchant}"
-    mixedTemplates:
-      - "Оплата cafe {merchant}"
-      - "Кофе payment {merchant}"
-      - "Restaurant покупка {merchant}"
+    amountBands:
+      - { min: 90, max: 450, weight: 0.42 }
+      - { min: 451, max: 1300, weight: 0.36 }
+      - { min: 1301, max: 4200, weight: 0.22 }
+    mccCodes: ["5812", "5813", "5814", "5499"]
+    allowedChannels: [pos, ecommerce, subscription]
+    merchantGroups:
+      - name: coffee
+        merchants: ["Starbucks", "Surf Coffee", "Coffee Like", "Skuratov"]
+        aliases: ["SBX COFFEE", "SURFCOF", "COFFEE LIKE", "COFEE BAR"]
+        transliterations: ["Kofeynya Utro", "Kofe Point", "Cofe Like"]
+      - name: fast_food
+        merchants: ["Burger King", "KFC", "Dodo Pizza", "Teremok", "Vkusno i Tochka"]
+        aliases: ["DODO*PIZZA", "BKING", "KFC RUS", "TEREMOK FOOD"]
+        transliterations: ["Vkusno", "Teremok", "Shoko"]
+      - name: restaurants
+        merchants: ["Shokoladnitsa", "Cafe Romashka", "Ресторан Волга", "Столовая Университет"]
+        aliases: ["KAFE ROMASHKA", "RESTORAN", "LUNCH CAFE", "ROMASHKA CAFE"]
+        transliterations: ["Restoran Volga", "Stolovaya Universitet", "Kafe Romashka"]
+    channelTemplates:
+      pos:
+        - "CARD PURCHASE {merchant}"
+        - "POS {merchant}"
+        - "PAYMENT AT {merchant}"
+        - "LUNCH {merchant}"
+      ecommerce:
+        - "{merchant} online order"
+        - "food delivery {merchant}"
+        - "{merchant} takeaway"
+        - "{merchant} app order"
+      subscription:
+        - "{merchant} coffee subscription"
+        - "meal plan {merchant}"
     hardNegatives:
-      - "snack bar payment {merchant}"
-      - "restaurant cashback bonus {merchant}"
+      - "restaurant cashback bonus"
+      - "cafe franchise fee"
+      - "bar equipment purchase"
+    nearNeighbors:
+      - "market"
+      - "pharmacy"
+      - "taxi"
 
   TRANSPORT:
-    amountRange: [35, 3000]
-    mccCodes: ["4111", "4121", "4131", "4789"]
-    merchants:
-      - "Yandex Taxi"
-      - "Uber"
-      - "Citymobil"
-      - "Metro Moscow"
-      - "Kazan Metro"
-      - "Bus Terminal"
-      - "Aeroexpress"
-      - "Russian Railways"
-      - "Такси Максим"
-      - "Метро Казань"
-      - "Автобусный Парк"
-    aliases:
-      - "YANDEX GO"
-      - "UBER TRIP"
-      - "RZD TICKET"
-      - "METRO"
-      - "TAXI"
-    templates:
-      - "Ride payment {merchant}"
-      - "Ticket purchase {merchant}"
-      - "Transport card top up {merchant}"
-      - "{merchant} trip"
-      - "Taxi ride {merchant}"
-    mixedTemplates:
-      - "Такси payment {merchant}"
-      - "Metro поездка {merchant}"
-      - "Bus ticket {merchant}"
+    amountBands:
+      - { min: 35, max: 180, weight: 0.28 }
+      - { min: 181, max: 900, weight: 0.45 }
+      - { min: 901, max: 3800, weight: 0.27 }
+    mccCodes: ["4111", "4121", "4131", "4789", "4511"]
+    allowedChannels: [pos, ecommerce, subscription, autopay]
+    merchantGroups:
+      - name: taxi
+        merchants: ["Yandex Taxi", "Uber", "Citymobil", "Такси Максим"]
+        aliases: ["YANDEX GO", "UBER TRIP", "CITYMOBIL", "TAXI MAXIM"]
+        transliterations: ["Taksi Maxim", "Yandeks Taxi", "Uber Trip"]
+      - name: public_transit
+        merchants: ["Metro Moscow", "Kazan Metro", "Bus Terminal", "Aeroexpress"]
+        aliases: ["METRO", "BUS TICKET", "AEROEXPRESS", "TRANSPORT CARD"]
+        transliterations: ["Metro Moskva", "Avtobusny Park", "Aeroekspress"]
+      - name: rail_air
+        merchants: ["Russian Railways", "S7 Airlines", "Pobeda", "UTair"]
+        aliases: ["RZD TICKET", "S7 AIR", "POBEDA", "UTAIR WEB"]
+        transliterations: ["RZD", "Russkie Zheleznye Dorogi", "Pobeda Air"]
+    channelTemplates:
+      pos:
+        - "trip {merchant}"
+        - "ride payment {merchant}"
+        - "transport card top up {merchant}"
+        - "{merchant} commute"
+      ecommerce:
+        - "ticket purchase {merchant}"
+        - "{merchant} app ride"
+        - "{merchant} booking"
+      subscription:
+        - "{merchant} monthly pass"
+      autopay:
+        - "{merchant} autopay"
     hardNegatives:
-      - "taxi cashback correction {merchant}"
-      - "transport card service fee {merchant}"
+      - "transport card service fee"
+      - "taxi driver insurance"
+      - "train merch store"
+    nearNeighbors:
+      - "market"
+      - "restaurant"
+      - "clinic"
 
-  SHOPPING:
-    amountRange: [150, 25000]
-    mccCodes: ["5311", "5411", "5651", "5699", "5942", "5999"]
-    merchants:
-      - "Ozon"
-      - "Wildberries"
-      - "Amazon"
-      - "Magnit"
-      - "Pyaterochka"
-      - "Perekrestok"
-      - "Auchan"
-      - "Lenta"
-      - "Fix Price"
-      - "DNS"
-      - "MVideo"
-      - "Zara"
-      - "H&M"
-      - "Детский Мир"
-      - "Магнит Семейный"
-    aliases:
-      - "OZON BANK"
-      - "WB MARKET"
-      - "SUPERMARKET"
-      - "PRODUCT STORE"
-      - "SHOP"
-    templates:
-      - "Card purchase {merchant}"
-      - "Online shop {merchant}"
-      - "Retail payment {merchant}"
-      - "{merchant} marketplace order"
-      - "Store purchase {merchant}"
-      - "Grocery payment {merchant}"
-    mixedTemplates:
-      - "Оплата shop {merchant}"
-      - "Supermarket покупка {merchant}"
-      - "Market order {merchant}"
+  GROCERIES:
+    amountBands:
+      - { min: 150, max: 1200, weight: 0.55 }
+      - { min: 1201, max: 3500, weight: 0.33 }
+      - { min: 3501, max: 9000, weight: 0.12 }
+    mccCodes: ["5411", "5422", "5441", "5451", "5499"]
+    allowedChannels: [pos, ecommerce, autopay]
+    merchantGroups:
+      - name: supermarkets
+        merchants: ["Magnit", "Pyaterochka", "Perekrestok", "Lenta", "Auchan"]
+        aliases: ["MAGNIT", "5KA", "PEREKRESTOK", "LENTA HYPER"]
+        transliterations: ["Pyaterochka", "Perekrestok", "Magnit Family"]
+      - name: local_food
+        merchants: ["Азбука Вкуса", "ВкусВилл", "Фермер Маркет", "Fresh Market"]
+        aliases: ["AZBUKA", "VKUSVILL", "FRESH MKT", "FARMER FOOD"]
+        transliterations: ["Azbuka Vkusa", "Vkusvill", "Fermer Market"]
+      - name: delivery
+        merchants: ["Samokat", "Yandex Lavka", "SberMarket", "Ozon Fresh"]
+        aliases: ["SAMOKAT", "LAVKA", "SBERMARKET", "OZON FRESH"]
+        transliterations: ["Yandeks Lavka", "Samokat", "Sber Market"]
+    channelTemplates:
+      pos:
+        - "grocery purchase {merchant}"
+        - "store payment {merchant}"
+        - "food market {merchant}"
+      ecommerce:
+        - "{merchant} grocery order"
+        - "{merchant} delivery"
+        - "{merchant} basket"
+      autopay:
+        - "{merchant} repeat order"
     hardNegatives:
-      - "stock market education payment {merchant}"
-      - "shopping cashback adjustment {merchant}"
+      - "stock market grocery webinar"
+      - "marketplace service fee"
+      - "farm equipment store"
+    nearNeighbors:
+      - "marketplace"
+      - "restaurant"
+      - "taxi"
+
+  RETAIL_SHOPPING:
+    amountBands:
+      - { min: 200, max: 1800, weight: 0.28 }
+      - { min: 1801, max: 8500, weight: 0.45 }
+      - { min: 8501, max: 28000, weight: 0.27 }
+    mccCodes: ["5311", "5651", "5699", "5732", "5942", "5999"]
+    allowedChannels: [pos, ecommerce, subscription]
+    merchantGroups:
+      - name: marketplaces
+        merchants: ["Ozon", "Wildberries", "Amazon", "AliExpress"]
+        aliases: ["OZON BANK", "WB MARKET", "AMZN", "ALIEXPRESS"]
+        transliterations: ["Vайлдберриз", "Ozon Ru", "Ali Ekspress"]
+      - name: electronics
+        merchants: ["DNS", "MVideo", "Citilink", "ReStore"]
+        aliases: ["DNS SHOP", "MVIDEO", "CITYLINK", "RESTORE"]
+        transliterations: ["M Video", "Sitilink", "Re Store"]
+      - name: fashion_home
+        merchants: ["Zara", "H&M", "Leroy Merlin", "Детский Мир"]
+        aliases: ["ZARA", "HM", "LEROY", "DETSKIY MIR"]
+        transliterations: ["Detskiy Mir", "Lerua Merlin", "Eich End Em"]
+    channelTemplates:
+      pos:
+        - "retail payment {merchant}"
+        - "store purchase {merchant}"
+        - "shop {merchant}"
+      ecommerce:
+        - "{merchant} marketplace order"
+        - "{merchant} online shop"
+        - "{merchant} web order"
+      subscription:
+        - "{merchant} premium membership"
+    hardNegatives:
+      - "shopping cashback adjustment"
+      - "market data subscription"
+      - "retail staff payroll"
+    nearNeighbors:
+      - "grocery"
+      - "utility"
+      - "pharmacy"
 
   ENTERTAINMENT:
-    amountRange: [200, 12000]
-    mccCodes: ["7832", "7922", "7996", "7999"]
-    merchants:
-      - "Kinopoisk"
-      - "Cinema Park"
-      - "Karo Film"
-      - "Yandex Afisha"
-      - "Spotify"
-      - "Netflix"
-      - "Steam"
-      - "VK Music"
-      - "Concert Hall"
-      - "Кинотеатр Мир"
-      - "Караоке Ночь"
-      - "Театр Камала"
-    aliases:
-      - "CINEMA"
-      - "THEATER"
-      - "CONCERT"
-      - "CLUB"
-      - "KARAOKE"
-    templates:
-      - "Ticket purchase {merchant}"
-      - "Subscription payment {merchant}"
-      - "Entertainment payment {merchant}"
-      - "{merchant} online service"
-      - "Event booking {merchant}"
-    mixedTemplates:
-      - "Кино ticket {merchant}"
-      - "Concert оплата {merchant}"
-      - "Theater билет {merchant}"
+    amountBands:
+      - { min: 150, max: 1200, weight: 0.35 }
+      - { min: 1201, max: 4000, weight: 0.33 }
+      - { min: 4001, max: 14000, weight: 0.32 }
+    mccCodes: ["7832", "7922", "7996", "7999", "5815"]
+    allowedChannels: [pos, ecommerce, subscription]
+    merchantGroups:
+      - name: cinema_events
+        merchants: ["Cinema Park", "Karo Film", "Yandex Afisha", "Concert Hall"]
+        aliases: ["CINEMA", "KARO", "AFISHA", "CONCERT"]
+        transliterations: ["Kino Park", "Teatr Kamala", "Koncert Hall"]
+      - name: digital_media
+        merchants: ["Spotify", "Netflix", "VK Music", "Kinopoisk"]
+        aliases: ["SPOTIFY", "NETFLIX", "VKMUSIC", "KINOPOISK"]
+        transliterations: ["Kinopoisk", "Vee Kay Music", "Netfliks"]
+      - name: gaming
+        merchants: ["Steam", "PlayStation", "Xbox", "Epic Games"]
+        aliases: ["STEAM", "PS STORE", "XBOX", "EPIC"]
+        transliterations: ["Stim", "PleySteyshn", "Iksboks"]
+    channelTemplates:
+      pos:
+        - "ticket purchase {merchant}"
+        - "event booking {merchant}"
+        - "club payment {merchant}"
+      ecommerce:
+        - "{merchant} online service"
+        - "{merchant} digital order"
+        - "{merchant} event booking"
+      subscription:
+        - "{merchant} subscription"
+        - "{merchant} monthly membership"
     hardNegatives:
-      - "bar concert ticket {merchant}"
-      - "club membership event {merchant}"
+      - "bar inventory purchase"
+      - "club management fee"
+      - "cinema refund processing"
+    nearNeighbors:
+      - "restaurant"
+      - "retail"
+      - "transport"
 
   HEALTH:
-    amountRange: [250, 30000]
-    mccCodes: ["5912", "8011", "8021", "8099", "7230"]
-    merchants:
-      - "Apteka 36.6"
-      - "Rigla"
-      - "Gorzdrav"
-      - "Invitro"
-      - "Helix"
-      - "Dental Clinic"
-      - "Family Doctor"
-      - "Fit Service Spa"
-      - "Аптека Планета"
-      - "Клиника Здоровье"
-      - "Стоматология Улыбка"
-      - "Массаж Центр"
-    aliases:
-      - "APTEKA"
-      - "PHARMACY"
-      - "CLINIC"
-      - "DENTAL"
-      - "DOCTOR"
-    templates:
-      - "Medical payment {merchant}"
-      - "Pharmacy purchase {merchant}"
-      - "Clinic visit {merchant}"
-      - "{merchant} appointment"
-      - "Health service {merchant}"
-    mixedTemplates:
-      - "Аптека payment {merchant}"
-      - "Clinic прием {merchant}"
-      - "Doctor оплата {merchant}"
+    amountBands:
+      - { min: 250, max: 1600, weight: 0.28 }
+      - { min: 1601, max: 6200, weight: 0.38 }
+      - { min: 6201, max: 32000, weight: 0.34 }
+    mccCodes: ["5912", "8011", "8021", "8099", "8043"]
+    allowedChannels: [pos, ecommerce, subscription, autopay]
+    merchantGroups:
+      - name: pharmacies
+        merchants: ["Apteka 36.6", "Rigla", "Gorzdrav", "Аптека Планета"]
+        aliases: ["APTEKA", "PHARMACY", "RIGLA", "GORZDRAV"]
+        transliterations: ["Apteka", "Gorzdrav", "Apteka Planeta"]
+      - name: labs_clinics
+        merchants: ["Invitro", "Helix", "Family Doctor", "Клиника Здоровье"]
+        aliases: ["INVITRO", "HELIX", "FAMILY DOCTOR", "CLINIC"]
+        transliterations: ["Klinika Zdorovie", "Famili Doktor", "Heliks"]
+      - name: dental_therapy
+        merchants: ["Dental Clinic", "Стоматология Улыбка", "Массаж Центр", "CMD"]
+        aliases: ["DENTAL", "DOCTOR", "MASSAGE", "CMD LAB"]
+        transliterations: ["Stomatologiya Ulybka", "Massazh Centr", "Dental Klinik"]
+    channelTemplates:
+      pos:
+        - "medical payment {merchant}"
+        - "clinic visit {merchant}"
+        - "pharmacy purchase {merchant}"
+      ecommerce:
+        - "{merchant} appointment"
+        - "{merchant} telemedicine"
+        - "{merchant} online order"
+      subscription:
+        - "{merchant} wellness subscription"
+      autopay:
+        - "{merchant} insurance autopay"
     hardNegatives:
-      - "fitness club health payment {merchant}"
-      - "pharmacy cashback adjustment {merchant}"
+      - "fitness trainer fee"
+      - "beauty salon cash desk"
+      - "pharmacy cashback correction"
+    nearNeighbors:
+      - "spa"
+      - "market"
+      - "restaurant"
 
-  OTHER:
-    amountRange: [50, 60000]
-    mccCodes: ["4829", "4900", "6010", "6012", "6300", "9311"]
-    merchants:
-      - "Bank Fee"
-      - "ATM Cash"
-      - "Mobile Operator"
-      - "Gosuslugi"
-      - "Utility Provider"
-      - "Insurance Company"
-      - "Loan Payment"
-      - "Internet Provider"
-      - "ЖКХ Казань"
-      - "Налоговая Служба"
-      - "Банк Перевод"
-    aliases:
-      - "CARD2CARD"
-      - "ATM"
-      - "BANK COMMISSION"
-      - "UTILITY BILL"
-      - "MOBILE TOPUP"
-    templates:
-      - "Bank service fee {merchant}"
-      - "Cash withdrawal {merchant}"
-      - "Card transfer {merchant}"
-      - "Utility bill payment {merchant}"
-      - "Insurance payment {merchant}"
-      - "Mobile phone top up {merchant}"
-      - "Loan repayment {merchant}"
-    mixedTemplates:
-      - "Перевод card2card {merchant}"
-      - "Комиссия bank {merchant}"
-      - "Utility оплата {merchant}"
+  BANKING_AND_FEES:
+    amountBands:
+      - { min: 50, max: 900, weight: 0.46 }
+      - { min: 901, max: 5500, weight: 0.32 }
+      - { min: 5501, max: 70000, weight: 0.22 }
+    mccCodes: ["6010", "6011", "6012", "6051", "4829"]
+    allowedChannels: [p2p, atm, billpay, pos]
+    merchantGroups:
+      - name: bank_fees
+        merchants: ["Bank Fee", "Card Service", "Currency Exchange", "Broker Service"]
+        aliases: ["BANK COMMISSION", "CARD2CARD", "EXCHANGE", "BROKER FEE"]
+        transliterations: ["Bank Komissiya", "Card2Card", "Broker Servis"]
+      - name: atm_cash
+        merchants: ["ATM Cash", "Cash Out", "Sber ATM", "T-Bank ATM"]
+        aliases: ["ATM", "CASH WITHDRAWAL", "ATM CASH", "CASH OUT"]
+        transliterations: ["Bankomat", "ATM Cash", "Cash Out"]
+      - name: transfers
+        merchants: ["Transfer Service", "SBP Transfer", "Card Transfer", "P2P Hub"]
+        aliases: ["SBP", "CARD TRANSFER", "TRANSFER HUB", "P2P"]
+        transliterations: ["Perevod", "SBP Transfer", "Kard Transfer"]
+    channelTemplates:
+      pos:
+        - "service fee {merchant}"
+        - "cash handling {merchant}"
+      p2p:
+        - "card transfer {merchant}"
+        - "p2p transfer {merchant}"
+        - "sbp payment {merchant}"
+      billpay:
+        - "loan repayment {merchant}"
+        - "broker fee {merchant}"
+      atm:
+        - "cash withdrawal {merchant}"
+        - "atm operation {merchant}"
     hardNegatives:
-      - "market transfer service {merchant}"
-      - "club monthly fee {merchant}"
+      - "bank store merchandise"
+      - "cashback reward transfer"
+      - "loan marketplace service"
+    nearNeighbors:
+      - "utility"
+      - "market"
+      - "taxi"
+
+  BILLS_AND_GOVERNMENT:
+    amountBands:
+      - { min: 120, max: 1800, weight: 0.36 }
+      - { min: 1801, max: 7800, weight: 0.39 }
+      - { min: 7801, max: 45000, weight: 0.25 }
+    mccCodes: ["4900", "6300", "9311", "9399", "4814"]
+    allowedChannels: [billpay, autopay, ecommerce]
+    merchantGroups:
+      - name: utilities
+        merchants: ["Utility Provider", "Mosenergo", "Vodokanal", "ЖКХ Казань"]
+        aliases: ["UTILITY BILL", "MOSENERGO", "VODOKANAL", "JKH"]
+        transliterations: ["ZhKH Kazan", "Mosenergo", "Vodokanal"]
+      - name: telecom
+        merchants: ["Mobile Operator", "Internet Provider", "Ростелеком", "MTS"]
+        aliases: ["MOBILE TOPUP", "INTERNET BILL", "ROSTELECOM", "MTS PAY"]
+        transliterations: ["Rostelekom", "Internet Provider", "Mobile Operator"]
+      - name: government_insurance
+        merchants: ["Gosuslugi", "Tax Service", "Insurance Company", "Налоговая Служба"]
+        aliases: ["GOSUSLUGI", "TAX PAYMENT", "INSURANCE", "GOV PAY"]
+        transliterations: ["Gosuslugi", "Nalogovaya Sluzhba", "Insurans Kompani"]
+    channelTemplates:
+      billpay:
+        - "utility bill payment {merchant}"
+        - "government payment {merchant}"
+        - "insurance payment {merchant}"
+      autopay:
+        - "{merchant} autopay"
+        - "{merchant} recurring bill"
+      ecommerce:
+        - "{merchant} online cabinet"
+        - "{merchant} service payment"
+    hardNegatives:
+      - "government exam marketplace"
+      - "insurance cashback bonus"
+      - "utility equipment shop"
+    nearNeighbors:
+      - "bank"
+      - "marketplace"
+      - "clinic"

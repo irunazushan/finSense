@@ -1,6 +1,7 @@
 mcc:
   5812: FOOD_AND_DRINKS
-  4111: TRANSPORT
+  5411: GROCERIES
+  6011: BANKING_AND_FEES
 
 keywords:
   - category: FOOD_AND_DRINKS
@@ -11,10 +12,10 @@ keywords:
     words:
       - taxi
       - metro
-  - category: SHOPPING
+  - category: RETAIL_SHOPPING
     words:
       - store
-      - market
+      - marketplace
 
 confidence:
   mcc_base_confirmed: 0.95
