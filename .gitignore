@@ -337,6 +337,12 @@ tools/ml-training/data/
 tools/ml-training/data-realistic/
 tools/ml-training/artifacts/
 tools/ml-training/.test-output/
+tools/ml-training/.review-artifacts/
+tools/ml-training/.review-data/
+tools/ml-training/.review-data-realistic/
+tools/ml-training/.tmp-holdout-debug/
+
+learn/
 
 **/.vscode/
 **/.gradle/

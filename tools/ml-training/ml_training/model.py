@@ -21,6 +21,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from .dataset import load_export_metadata
 
 MISSING_MCC_TOKEN = "__MISSING_MCC__"
+AMOUNT_CLIP_MAX = 50000.0
 SKLEARN_MODEL_FILENAME = "sklearn-pipeline.joblib"
 ONNX_MODEL_FILENAME = "transaction-classifier.onnx"
 LABELS_FILENAME = "labels.json"
@@ -84,6 +85,10 @@ def train_model(config: TrainingConfig) -> Dict[str, str]:
             "model_type": "tfidf_logistic_regression",
             "inputs": ["text", "mccCode", "amount"],
             "missing_mcc_token": MISSING_MCC_TOKEN,
+            "amount_preprocessing": {
+                "transform": "signed_log1p",
+                "clip_max": AMOUNT_CLIP_MAX,
+            },
             "target_opset": config.target_opset,
             "training_data": dataset_metadata,
         },
@@ -255,8 +260,15 @@ def feature_frame(df: pd.DataFrame) -> pd.DataFrame:
     features["text"] = (description + " " + merchant_name).str.strip()
     features["mccCode"] = df["mccCode"].fillna(MISSING_MCC_TOKEN).astype(str)
     features["mccCode"] = features["mccCode"].replace({"": MISSING_MCC_TOKEN})
-    features["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0).astype("float32")
+    features["amount"] = transform_amount_feature(df["amount"])
     return features
+
+
+def transform_amount_feature(values: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(values, errors="coerce").fillna(0.0).astype("float32")
+    clipped = numeric.clip(lower=-AMOUNT_CLIP_MAX, upper=AMOUNT_CLIP_MAX)
+    transformed = np.sign(clipped) * np.log1p(np.abs(clipped))
+    return pd.Series(transformed, index=values.index, dtype="float32")
 
 
 def export_onnx_model(pipeline: Pipeline, output_path: Path, target_opset: int) -> None:

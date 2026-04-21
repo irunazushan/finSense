@@ -21,10 +21,14 @@ if str(ML_TRAINING_DIR) not in sys.path:
 
 from ml_training.dataset import DatasetExportConfig, export_datasets  # noqa: E402
 from ml_training.model import (  # noqa: E402
+    AMOUNT_CLIP_MAX,
     EvaluationConfig,
     TrainingConfig,
     evaluate_artifacts,
+    feature_frame,
     load_labels,
+    predict_onnx_scores,
+    predict_sklearn_scores,
     train_model,
 )
 
@@ -94,6 +98,65 @@ def test_training_exports_loadable_onnx_labels_and_metadata(workspace_tmp: Path)
     model_metadata = json.loads(Path(result["metadata_path"]).read_text(encoding="utf-8"))
     assert model_metadata["training_data"]["split_strategy"] == "holdout_merchants"
     assert model_metadata["training_data"]["labels"] == EXPECTED_LABELS
+    assert model_metadata["amount_preprocessing"]["transform"] == "signed_log1p"
+    assert model_metadata["amount_preprocessing"]["clip_max"] == AMOUNT_CLIP_MAX
+
+
+def test_feature_frame_clips_and_log_scales_amount_outliers() -> None:
+    features = feature_frame(
+        pd.DataFrame(
+            [
+                {"amount": 50, "description": "", "merchantName": "", "mccCode": ""},
+                {"amount": 353303, "description": "", "merchantName": "", "mccCode": ""},
+                {"amount": -353303, "description": "", "merchantName": "", "mccCode": ""},
+            ]
+        )
+    )
+
+    assert features["amount"].iloc[0] == pytest.approx(3.9318256, abs=1e-6)
+    assert features["amount"].iloc[1] == pytest.approx(10.819798, abs=1e-6)
+    assert features["amount"].iloc[2] == pytest.approx(-10.819798, abs=1e-6)
+
+
+def test_high_amount_outlier_does_not_override_obvious_transport_signal(workspace_tmp: Path) -> None:
+    data_dir = workspace_tmp / "data"
+    artifact_dir = workspace_tmp / "artifacts"
+    export_datasets(
+        DatasetExportConfig(
+            output_dir=data_dir,
+            dataset_profile="realistic",
+            split_strategy="holdout_merchants",
+            train_size=2400,
+            validation_size=500,
+            test_size=500,
+            users_per_split=20,
+            holdout_ratio=0.25,
+            seed=52,
+        )
+    )
+
+    train_model(TrainingConfig(data_dir=data_dir, artifact_dir=artifact_dir))
+
+    sklearn_scores = predict_sklearn_scores(
+        model_path=artifact_dir / "sklearn-pipeline.joblib",
+        amount=353303,
+        description="Taxi ride",
+        merchant_name="Yandex taxi",
+        mcc_code="4121",
+    )
+    onnx_scores = predict_onnx_scores(
+        model_path=artifact_dir / "transaction-classifier.onnx",
+        labels_path=artifact_dir / "labels.json",
+        amount=353303,
+        description="Taxi ride",
+        merchant_name="Yandex taxi",
+        mcc_code="4121",
+    )
+
+    assert sklearn_scores[0][0] == "TRANSPORT"
+    assert sklearn_scores[0][1] > 0.50
+    assert onnx_scores[0][0] == "TRANSPORT"
+    assert onnx_scores[0][1] > 0.50
 
 
 def test_evaluate_artifacts_records_unique_dataset_specific_reports(workspace_tmp: Path) -> None:
