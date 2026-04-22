@@ -28,6 +28,10 @@ services:
       - "${CLASSIFIER_SERVER_PORT:-8081}:${CLASSIFIER_SERVER_PORT:-8081}"
     environment:
       SERVER_PORT: ${CLASSIFIER_SERVER_PORT:-8081}
+      CLASSIFIER_STRATEGY: ${CLASSIFIER_STRATEGY:-rule}
+      CLASSIFIER_MODEL_DIR: ${CLASSIFIER_MODEL_DIR:-/app/model}
+    volumes:
+      - ./tools/ml-training/artifacts:/app/model:ro
     networks:
       - finsense-net
     restart: unless-stopped

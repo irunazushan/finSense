@@ -25,7 +25,7 @@ public class ClassifyController {
     }
 
     @PostMapping("/classify")
-    @Operation(summary = "Classify transaction by rules")
+    @Operation(summary = "Classify transaction")
     public ClassificationResult classify(@Valid @RequestBody ClassifyRequest request) {
         ClassificationDecision decision = classificationService.classify(
             new ClassificationInput(

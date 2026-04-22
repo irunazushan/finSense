@@ -79,13 +79,13 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
             mccCode = "5311",
             transactionDate = Instant.parse("2026-02-09T10:00:00Z"),
             status = "CLASSIFIED",
-            category = "SHOPPING",
+            category = "RETAIL_SHOPPING",
             classifierSource = "ML",
             classifierConfidence = 0.95,
             classifiedAt = Instant.parse("2026-02-09T10:00:01Z")
         )
 
-        doReturn(ClassifierResponse(category = "OTHER", confidence = 0.55))
+        doReturn(ClassifierResponse(category = "UNDEFINED", confidence = 0.55))
             .whenever(classifierClient)
             .classify(any())
 
@@ -118,7 +118,7 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
         val llmPayload = objectMapper.readTree(llmRequestRecord!!.value())
         assertThat(llmPayload["transactionId"].asText()).isEqualTo(transactionId.toString())
         assertThat(llmPayload["requestId"].asText()).isNotBlank()
-        assertThat(llmPayload["predictedCategory"].asText()).isEqualTo("OTHER")
+        assertThat(llmPayload["predictedCategory"].asText()).isEqualTo("UNDEFINED")
         assertThat(llmPayload["history"].isArray).isTrue()
         assertThat(llmPayload["history"].size()).isGreaterThanOrEqualTo(1)
     }
@@ -140,7 +140,7 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
             mccCode = null,
             transactionDate = Instant.parse("2026-02-10T12:00:00Z"),
             status = "LLM_CLASSIFYING",
-            category = "OTHER",
+            category = "UNDEFINED",
             classifierSource = "ML",
             classifierConfidence = 0.4,
             classifiedAt = null
@@ -178,7 +178,7 @@ class KafkaTransactionFlowE2ETest : BaseE2ETest() {
         dbSeedHelper.insertUser(userId)
         dbSeedHelper.insertAccount(accountId, userId, number = "ACC-${UUID.randomUUID()}")
 
-        doReturn(ClassifierResponse(category = "SHOPPING", confidence = 0.96))
+        doReturn(ClassifierResponse(category = "RETAIL_SHOPPING", confidence = 0.96))
             .whenever(classifierClient)
             .classify(any())
 

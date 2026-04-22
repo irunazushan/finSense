@@ -8,9 +8,10 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # ---- Runner stage ----
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
 COPY classifier-rules.yaml classifier-rules.yaml
+RUN mkdir -p /app/model
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,0 +1,28 @@
+{
+  "model_type": "tfidf_logistic_regression",
+  "inputs": [
+    "text",
+    "mccCode",
+    "amount"
+  ],
+  "missing_mcc_token": "__MISSING_MCC__",
+  "amount_preprocessing": {
+    "transform": "signed_log1p",
+    "clip_max": 50000.0
+  },
+  "target_opset": 15,
+  "training_data": {
+    "dataset_id": "realistic-holdout_merchants-s42-u96-h0_18",
+    "labels": [
+      "BANKING_AND_FEES",
+      "BILLS_AND_GOVERNMENT",
+      "ENTERTAINMENT",
+      "FOOD_AND_DRINKS",
+      "GROCERIES",
+      "HEALTH",
+      "RETAIL_SHOPPING",
+      "TRANSPORT",
+      "UNDEFINED"
+    ]
+  }
+}

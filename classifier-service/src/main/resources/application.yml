@@ -23,3 +23,5 @@ app:
   classification:
     rules-file: ${CLASSIFIER_RULES_FILE:file:./classifier-rules.yaml}
     strategy: ${CLASSIFIER_STRATEGY:rule}
+    model:
+      dir: ${CLASSIFIER_MODEL_DIR:./model}

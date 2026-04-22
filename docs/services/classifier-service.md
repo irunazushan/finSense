@@ -3,7 +3,7 @@
 ## 1. Роль сервиса в системе
 
 ### Бизнес-назначение
-Classifier Service отвечает за быструю классификацию банковских транзакций с использованием детерминированных правил (на основе MCC-кодов, ключевых слов и регулярных выражений) с возможностью последующего расширения до ML‑модели (Smile). Сервис предоставляет синхронный REST API для Core Service.
+Classifier Service отвечает за быструю классификацию банковских транзакций. Сервис поддерживает детерминированные правила (на основе MCC-кодов и ключевых слов) и ONNX‑модель, обученную в `tools/ml-training`. Сервис предоставляет синхронный REST API для Core Service.
 
 ### Business capabilities
 - **Классификация транзакций** — определение категории транзакции (например, `FOOD_AND_DRINKS`, `TRANSPORT` и т.д.).
@@ -148,7 +148,7 @@ confidence = 0.0
 
 | Сущность               | Тип               | Контекст                            | Краткое описание                                                                                                                                                                                           |
 | ---------------------- | ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TransactionCategory`  | Enum              | Shared Contract (Core ↔ Classifier) | Набор допустимых категорий транзакций: `FOOD_AND_DRINKS`, `TRANSPORT`, `SHOPPING`, `ENTERTAINMENT`, `HEALTH`, `OTHER`, `UNDEFINED`. Используется как контракт между сервисами.                             |
+| `TransactionCategory`  | Enum              | Shared Contract (Core ↔ Classifier) | Набор допустимых категорий транзакций: `FOOD_AND_DRINKS`, `TRANSPORT`, `GROCERIES`, `RETAIL_SHOPPING`, `ENTERTAINMENT`, `HEALTH`, `BANKING_AND_FEES`, `BILLS_AND_GOVERNMENT`, `UNDEFINED`. Используется как контракт между сервисами.                             |
 | `TransactionData`      | DTO               | Входной контракт (API)              | Представление транзакции для классификации. Содержит: `transactionId`, `amount`, `description`, `merchantName`, `mccCode`, `timestamp`. Не является доменной сущностью Core, а является моделью контракта. |
 | `ClassificationResult` | DTO               | Выходной контракт (API)             | Результат классификации. Содержит: `transactionId`, `category`, `confidence`, `source` (`RULE` / `ML`). Используется Core Service для принятия решения о fallback.                                         |
 | `CategoryRule`         | Внутренний объект | Rule Engine Context                 | Описание одного правила классификации. Содержит: `category`, `mccCodes`, `keywordPatterns`, параметры расчёта `confidence`. Загружается из `classifier-rules.yaml`.                                        |
@@ -178,7 +178,10 @@ management:
 
 app:
   classification:
-    rules-file: classpath:classifier-rules.yaml
+    rules-file: ${CLASSIFIER_RULES_FILE:file:./classifier-rules.yaml}
+    strategy: ${CLASSIFIER_STRATEGY:rule}
+    model:
+      dir: ${CLASSIFIER_MODEL_DIR:./model}
 ```
 
 В _classifier-rules.yaml_ будет хранится в виде ключа - значения, где ключом будет тип параметра и значением - категория к которому оно относится:
@@ -198,7 +201,7 @@ keywords:
       - ресторан
 ...
 
-  - category: SHOPPING
+  - category: RETAIL_SHOPPING
     words:
       - магазин
       - супермаркет
@@ -226,9 +229,11 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # ---- Runner stage ----
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
+COPY classifier-rules.yaml classifier-rules.yaml
+RUN mkdir -p /app/model
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
@@ -247,6 +252,10 @@ services:
       - "8081:8081"
     environment:
       SERVER_PORT: 8081
+      CLASSIFIER_STRATEGY: rule
+      CLASSIFIER_MODEL_DIR: /app/model
+    volumes:
+      - ./tools/ml-training/artifacts:/app/model:ro
     networks:
       - finsense-net
     restart: unless-stopped
@@ -268,9 +277,9 @@ docker-compose -f docker-compose.services.yml up -d classifier
 
 ## 9. Стратегия эволюции к ML
 
-- Введение интерфейса ClassificationStrategy
+- В сервисе уже используется интерфейс `ClassificationStrategy`
 - Реализации:
-    - RuleBasedStrategy
-    - SmileModelStrategy
-- Выбор через configuration
-- так же можно вынести TransactionCategory в общий gradle/maven модуль типа common-dto
+    - `RuleBasedClassificationStrategy`
+    - `MlOnnxClassificationStrategy`
+- Выбор реализации задаётся через `app.classification.strategy`
+- ONNX‑артефакты (`transaction-classifier.onnx`, `labels.json`, `metadata.json`) монтируются в контейнер через volume

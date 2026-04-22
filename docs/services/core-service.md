@@ -193,7 +193,7 @@ Core Service инициирует генерацию финансовой рек
 ### Краткое описание внешних сервисов
 
 - **Generator Service** – генерирует синтетические транзакции, публикует в `raw-transactions`. Используется для тестирования.
-- **Classifier Service** – ML‑классификатор на Java + Smile (или временно правила). Возвращает категорию и уверенность.
+- **Classifier Service** – ML‑классификатор на Java + ONNX Runtime с rollback на rule-based стратегию через конфигурацию. Возвращает категорию и уверенность.
 - **Transaction Classifier Agent** – агент на LLM для сложных случаев. Потребляет `llm-classifier-requests`, публикует ответы в `llm-classifier-responses`.
 - **Financial Coach Agent** – агент на LLM для советов. Потребляет `coach-requests`, сохраняет советы в БД, опционально публикует `coach-responses` для Notify Service.
 - **Notify Service** (опционально) – слушает `coach-responses`, отправляет уведомления в Telegram.
