@@ -34,7 +34,8 @@ Python Streamlit tool at `tools/transaction-tester` for:
   - ambiguous low-signal transactions
   - optional fixed `target_user_id` (all generated tx for one user UUID)
 - Category source of truth:
-  - `classifier-service/classifier-rules.yaml`
+  - `tools/ml-training/data_sources/transaction_catalog.yaml`
+  - classifier runtime labels exported with the ONNX artifacts
   - enum alignment from `TransactionCategory.java`, excluding `UNDEFINED`
 </generator_flow>
 

@@ -89,9 +89,9 @@
 ### 3. `llm-classifier-responses`
 
 **Назначение:**  
-Результаты LLM-классификации от Reasoning Agent.
+Результаты LLM-классификации от Transaction Classifier Agent.
 
-**Продюсер:** Reasoning Agent  
+**Продюсер:** Transaction Classifier Agent  
 **Консьюмеры:** Core Service  
 **Ключ:** `transactionId` (UUID) – тот же, что был в запросе.  
 **Партиции:** 2  

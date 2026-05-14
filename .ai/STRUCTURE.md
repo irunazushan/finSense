@@ -79,7 +79,6 @@ core-service/
 classifier-service/
   pom.xml
   Dockerfile
-  classifier-rules.yaml
   src/
     main/
       java/com/finsense/classifier/
@@ -87,7 +86,6 @@ classifier-service/
         config/
           ClassificationProperties.java
           OpenApiConfig.java
-          RulesLoader.java
         controller/
           ClassifyController.java
         dto/
@@ -100,25 +98,32 @@ classifier-service/
           ClassificationDecision.java
           ClassificationInput.java
           TransactionCategory.java
-        rules/
-          RuleEngine.java
-          RuleSet.java
-          TextNormalizer.java
+        onnx/
+          OnnxFeaturePreprocessor.java
+          OnnxFeatureVector.java
+          OnnxInferenceEngine.java
+          OnnxModelArtifacts.java
+          OnnxModelLoader.java
         service/
           ClassificationService.java
           ClassificationStrategy.java
-          RuleBasedClassificationStrategy.java
+          MlOnnxClassificationStrategy.java
       resources/
         application.yml
     test/
       java/com/finsense/classifier/
         api/ClassifyControllerApiTest.java
-        config/RulesLoaderTest.java
-        rules/
-          RuleEngineTest.java
-          TextNormalizerTest.java
+        onnx/
+          OnnxFeaturePreprocessorTest.java
+          OnnxInferenceEngineTest.java
+          OnnxModelLoaderTest.java
+        service/
+          ClassificationServiceTest.java
       resources/
-        test-classifier-rules.yaml
+        model/
+          transaction-classifier.onnx
+          labels.json
+          metadata.json
 ```
 
 ### `financial-coach-agent`

@@ -3,20 +3,22 @@
 ## 1. Роль сервиса в системе
 
 ### Бизнес-назначение
-Classifier Service отвечает за быструю классификацию банковских транзакций. Сервис поддерживает детерминированные правила (на основе MCC-кодов и ключевых слов) и ONNX‑модель, обученную в `tools/ml-training`. Сервис предоставляет синхронный REST API для Core Service.
+Classifier Service отвечает за быструю синхронную ML-классификацию банковских транзакций. Сервис использует ONNX Runtime и модель, подготовленную в `tools/ml-training`, принимает данные транзакции через REST API и возвращает категорию вместе с числовой оценкой уверенности.
 
 ### Business capabilities
-- **Классификация транзакций** — определение категории транзакции (например, `FOOD_AND_DRINKS`, `TRANSPORT` и т.д.).
-- **Оценка уверенности** — возврат числового значения `confidence` (0.0–1.0) для принятия решения в Core.
-- **Нормализация текста** — приведение описаний и merchant name к единому формату для повышения точности правил.
+- **Классификация транзакций** — определение категории транзакции, например `FOOD_AND_DRINKS`, `TRANSPORT`, `GROCERIES`.
+- **Оценка уверенности** — возврат значения `confidence` в диапазоне `0.0–1.0`, по которому Core Service принимает решение о завершении классификации или fallback на LLM-агента.
+- **Подготовка признаков** — нормализация текстовых и числовых полей транзакции перед передачей в ONNX-модель.
+- **Синхронный inference** — быстрый ответ в REST-потоке без обращения к Kafka или БД.
 
 ### Bounded context и данные
-Сервис **не владеет данными** — он не хранит транзакции и не ведёт свою БД. Все входные данные поступают в запросе, результат возвращается синхронно. В будущем (при внедрении ML) может потребоваться хранилище для модели, но это будет решено отдельно.
+Сервис не владеет бизнес-данными и не хранит транзакции. Все входные данные поступают в запросе, результат возвращается синхронно. Артефакты модели (`transaction-classifier.onnx`, `labels.json`, `metadata.json`) поставляются как runtime-зависимость контейнера.
 
 ### Место в архитектуре
-Classifier Service является **вычислительным узлом** (processing service) в цепочке классификации:
-- Core Service вызывает его синхронно для каждой транзакции.
-- Сервис не зависит от других компонентов (кроме возможного хранилища модели в будущем).
+Classifier Service является вычислительным узлом в цепочке классификации:
+- Core Service вызывает его синхронно для каждой входящей транзакции.
+- Если `confidence` выше порога, Core Service сохраняет результат классификации.
+- Если `confidence` ниже порога, Core Service отправляет транзакцию в `llm-classifier-requests` для обработки Transaction Classifier Agent.
 
 ---
 
@@ -26,133 +28,85 @@ Classifier Service является **вычислительным узлом** 
 | -------------------- | -------------------------------------------------------------------- |
 | Java 17              | Стабильность, широкое распространение, производительность.           |
 | Spring Boot 3.x      | Быстрая разработка REST-сервисов, встроенные механизмы конфигурации. |
-| Maven                | Стандарт для Java-проектов, простота управления зависимостями.       |
-| Spring Web           | Создание контроллера и обработка запросов.                           |
+| Maven                | Управление зависимостями и сборкой Java-сервиса.                     |
+| Spring Web           | Создание REST-контроллера и обработка запросов.                      |
+| ONNX Runtime         | Быстрый переносимый inference обученной ML-модели.                   |
+| Jackson              | Обработка JSON-запросов и ответов.                                   |
 | springdoc-openapi    | Автоматическая генерация OpenAPI-спецификации и Swagger UI.          |
 | Spring Boot Actuator | Health checks, метрики для отладки и мониторинга.                    |
 | Docker               | Изоляция, воспроизводимость окружения.                               |
-                                  |
 
 ---
 
 ## 3. Архитектура сервиса
 
-### Логическая структура (слои)
+### Логическая структура
 
-| Слой                     | Компоненты / пакеты                                      | Ответственность                                                                 |
-|--------------------------|----------------------------------------------------------|---------------------------------------------------------------------------------|
-| **Controller**           | `com.finsense.classifier.controller.ClassifyController`  | Приём REST-запросов, валидация, вызов сервиса классификации.                    |
-| **Service**              | `com.finsense.classifier.service.ClassificationService`  | Оркестрация процесса классификации, выбор правил.                               |
-| **Model**       | `com.finsense.classifier.model.*`                        | DTO для запроса/ответа, перечисление категорий.                                 |
-| **Infrastructure**       | `com.finsense.classifier.rules.RuleEngine`               | Реализация правил классификации (if-else, регулярные выражения).               |
-| **Config**               | `com.finsense.classifier.config.*`                       | Конфигурационные классы (OpenAPI, загрузка правил).                      |
+| Слой               | Компоненты / пакеты                                      | Ответственность                                                            |
+|--------------------|----------------------------------------------------------|----------------------------------------------------------------------------|
+| **Controller**     | `com.finsense.classifier.controller.ClassifyController`  | Приём REST-запросов, валидация, возврат результата классификации.         |
+| **Service**        | `com.finsense.classifier.service.ClassificationService`  | Оркестрация процесса классификации и вызов ML-стратегии.                  |
+| **Model / DTO**    | `com.finsense.classifier.model.*`, `dto.*`               | Контракты входных данных, результата и категорий.                         |
+| **ONNX Runtime**   | `com.finsense.classifier.onnx.*`                         | Загрузка модели, подготовка признаков, выполнение inference.              |
+| **Config**         | `com.finsense.classifier.config.*`                       | Конфигурация приложения, OpenAPI, параметров модели и стратегии.          |
 
 ### Основные компоненты
 
-| Компонент                  | Назначение                                                                 |
-|----------------------------|----------------------------------------------------------------------------|
-| `ClassifyController`       | Единственный REST-эндпоинт `POST /api/classify`.                           |
-| `ClassificationService`    | Принимает `TransactionData`, вызывает `RuleEngine`, возвращает `ClassificationResult`. |
-| `RuleEngine`               | Содержит логику классификации: проверка MCC, поиск по ключевым словам, нормализация. |
-| `TextNormalizer`           | lower-case, trim, replace punctuation → space, collapse spaces. |
-| `TransactionCategory`      | Enum со списком допустимых категорий.                |
+| Компонент                    | Назначение                                                                    |
+|------------------------------|-------------------------------------------------------------------------------|
+| `ClassifyController`         | REST-эндпоинт `POST /api/classify`.                                           |
+| `ClassificationService`      | Принимает входные данные, вызывает ML-классификацию и формирует ответ.        |
+| `MlOnnxClassificationStrategy` | Выполняет классификацию через ONNX Runtime.                                  |
+| `OnnxModelLoader`            | Загружает ONNX-модель и связанные metadata/labels.                            |
+| `OnnxFeaturePreprocessor`    | Преобразует поля транзакции в feature vector для модели.                      |
+| `OnnxInferenceEngine`        | Выполняет inference и возвращает вероятности/score по категориям.             |
+| `TransactionCategory`        | Единый набор допустимых категорий, согласованный с Core и agent-контрактами.  |
 
-### Потоки данных внутри сервиса
+### Поток данных внутри сервиса
 
-1. **Вход** → `POST /api/classify` с `TransactionData` (JSON).
-2. **Валидация** — проверка обязательных полей (amount, description).
-3. **Нормализация** — `TextNormalizer` обрабатывает `description` и `merchantName`.
-4. **Правила** — `RuleEngine` последовательно:
-   - Проверяет `mccCode` по словарю.
-   - Применяет правила по ключевым словам (регулярные выражения) для description и merchant_name тразакции.
-   - Комбинирует результаты и вычисляет итоговую категорию и confidence.
-
-## Rule Conflict Resolution Strategy
-
-При одновременном совпадении нескольких правил применяется следующая стратегия приоритета:
-
-1. MCC имеет приоритет над ключевыми словами, если найдено точное соответствие MCC-кода.
-2. Если MCC не найден:
-   - применяются правила по ключевым словам.
-3. Если совпадает несколько keyword-правил:
-   - выбирается категория с наибольшим рассчитанным `confidence`.
-4. Если ни одно правило не сработало:
-   - возвращается категория `UNDEFINED`
-   - `confidence = 0.0`
-
-Таким образом обеспечивается детерминированность и предсказуемость классификации.
-
-## Confidence Calculation Logic
-
-Расчёт `confidence` выполняется по следующим правилам:
-
-### Для MCC:
-```
-confidence = min(mcc_base, max)
-```
-
-Если дополнительно совпали keyword-правила той же категории:
-```
-confidence = min(mcc_base + boost_per_match * matchesCount, max)
-```
-
-### Для keyword-правил (если MCC не найден):
-```
-confidence = min(keyword_base + boost_per_match * matchesCount, max)
-```
-
-### Если совпадений нет:
-```
-category = UNDEFINED
-confidence = 0.0
-```
-
-Все параметры (`mcc_base`, `keyword_base`, `boost_per_match`, `max`)
-задаются в `classifier-rules.yaml`.
-  
-5. **Формирование ответа** — `ClassificationResult` (категория, confidence, источник "RULE").
-6. **Выход** — JSON-ответ.
+1. **Вход** — `POST /api/classify` с JSON-представлением транзакции.
+2. **Валидация** — проверка обязательных полей, необходимых для ML-инференса.
+3. **Подготовка признаков** — нормализация текста, обработка суммы, MCC, merchant name и description.
+4. **ONNX inference** — выполнение модели через ONNX Runtime.
+5. **Постобработка результата** — выбор категории с максимальной оценкой и расчёт итогового `confidence`.
+6. **Выход** — JSON-ответ с `transactionId`, `category`, `confidence`, `source`.
 
 ---
 
-## 4. REST API (контракт)
+## 4. REST API
 
-### Единственный endpoint
-
-| Метод | URL              | Описание                                        | Request Body                     | Response Body                    | Коды ответов         |
-|-------|------------------|-------------------------------------------------|----------------------------------|----------------------------------|----------------------|
-| POST  | `/api/classify`  | Классифицировать транзакцию                     | `TransactionData`                | `ClassificationResult`           | 200, 400, 500        |
+| Метод | URL             | Описание                    | Request Body      | Response Body          | Коды ответов  |
+|-------|-----------------|-----------------------------|-------------------|------------------------|---------------|
+| POST  | `/api/classify` | Классифицировать транзакцию | `ClassifyRequest` | `ClassificationResult` | 200, 400, 500 |
 
 ### Коды ответов
-- `200 OK` — успешная классификация (даже если категория `UNDEFINED`).
-- `400 Bad Request` — некорректные входные данные (например, отсутствует `description`).
-- `500 Internal Server Error` — внутренняя ошибка (например, сбой в правилах).
+- `200 OK` — успешное выполнение inference.
+- `400 Bad Request` — некорректные входные данные.
+- `500 Internal Server Error` — внутренняя ошибка сервиса или недоступность ML-артефактов.
 
+---
 
 ## 5. Взаимодействие с другими сервисами
 
 ### REST-взаимодействие
 
-| Сервис              | Метод | URL          | Описание                                |
-|---------------------|-------|--------------|-----------------------------------------|
-| Core Service        | POST  | `/api/classify` | Вызов классификатора для транзакции     |
+| Сервис       | Метод | URL             | Описание                            |
+|--------------|-------|-----------------|-------------------------------------|
+| Core Service | POST  | `/api/classify` | Синхронная ML-классификация транзакции |
 
-- **Core Service** — единственный потребитель Classifier Service. Вызывает синхронно при обработке каждой транзакции.
-- *Других зависимостей нет* — сервис не вызывает внешние API и не использует Kafka.
-
----
-
-## 6. Доменные сущности
+Core Service является основным потребителем Classifier Service. Сервис не вызывает внешние API, не использует Kafka и не обращается к PostgreSQL.
 
 ---
 
-| Сущность               | Тип               | Контекст                            | Краткое описание                                                                                                                                                                                           |
-| ---------------------- | ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TransactionCategory`  | Enum              | Shared Contract (Core ↔ Classifier) | Набор допустимых категорий транзакций: `FOOD_AND_DRINKS`, `TRANSPORT`, `GROCERIES`, `RETAIL_SHOPPING`, `ENTERTAINMENT`, `HEALTH`, `BANKING_AND_FEES`, `BILLS_AND_GOVERNMENT`, `UNDEFINED`. Используется как контракт между сервисами.                             |
-| `TransactionData`      | DTO               | Входной контракт (API)              | Представление транзакции для классификации. Содержит: `transactionId`, `amount`, `description`, `merchantName`, `mccCode`, `timestamp`. Не является доменной сущностью Core, а является моделью контракта. |
-| `ClassificationResult` | DTO               | Выходной контракт (API)             | Результат классификации. Содержит: `transactionId`, `category`, `confidence`, `source` (`RULE` / `ML`). Используется Core Service для принятия решения о fallback.                                         |
-| `CategoryRule`         | Внутренний объект | Rule Engine Context                 | Описание одного правила классификации. Содержит: `category`, `mccCodes`, `keywordPatterns`, параметры расчёта `confidence`. Загружается из `classifier-rules.yaml`.                                        |
-| `RuleSet`              | Внутренний объект | Rule Engine Context                 | Набор всех правил классификации, включая конфигурацию расчёта confidence (`mcc_base`, `keyword_base`, `boost_per_match`, `max`). Используется RuleEngine.                                                  |
+## 6. Доменные сущности и контракты
+
+| Сущность               | Тип               | Контекст                            | Краткое описание |
+| ---------------------- | ----------------- | ----------------------------------- | ---------------- |
+| `TransactionCategory`  | Enum              | Shared Contract                     | Набор допустимых категорий транзакций: `FOOD_AND_DRINKS`, `TRANSPORT`, `GROCERIES`, `RETAIL_SHOPPING`, `ENTERTAINMENT`, `HEALTH`, `BANKING_AND_FEES`, `BILLS_AND_GOVERNMENT`, `UNDEFINED`. |
+| `ClassifyRequest`      | DTO               | Входной контракт API                | Представление транзакции для классификации: `transactionId`, `amount`, `description`, `merchantName`, `mccCode`, `timestamp`. |
+| `ClassificationResult` | DTO               | Выходной контракт API               | Результат классификации: `transactionId`, `category`, `confidence`, `source`. |
+| `OnnxModelArtifacts`   | Внутренний объект | ML Runtime Context                  | Набор артефактов модели: ONNX-файл, labels и metadata. |
+| `OnnxFeatureVector`    | Внутренний объект | ML Runtime Context                  | Вектор признаков, передаваемый в ONNX Runtime. |
 
 ---
 
@@ -168,8 +122,6 @@ spring:
   application:
     name: classifier-service
 
-  # No database configuration — service is stateless
-
 management:
   endpoints:
     web:
@@ -178,47 +130,27 @@ management:
 
 app:
   classification:
-    rules-file: ${CLASSIFIER_RULES_FILE:file:./classifier-rules.yaml}
-    strategy: ${CLASSIFIER_STRATEGY:rule}
+    strategy: ${CLASSIFIER_STRATEGY:ml}
     model:
       dir: ${CLASSIFIER_MODEL_DIR:./model}
 ```
 
-В _classifier-rules.yaml_ будет хранится в виде ключа - значения, где ключом будет тип параметра и значением - категория к которому оно относится:
+Каталог модели содержит:
 
-```yaml
-mcc:
-  5812: FOOD_AND_DRINKS  # рестораны
-  5813: FOOD_AND_DRINKS  # бары
-...
-
-# Ключевые слова для description и merchant name
-keywords:
-  - category: FOOD_AND_DRINKS
-    words:
-      - кофе
-      - кофейня
-      - ресторан
-...
-
-  - category: RETAIL_SHOPPING
-    words:
-      - магазин
-      - супермаркет
-      - продукт
-...
-    
-# Настройки confidence
-confidence:
-  mcc_base: 0.95           
-  keyword_base: 0.85
-  boost_per_match: 0.05 
-  max: 0.99  
+```text
+model/
+  transaction-classifier.onnx
+  labels.json
+  metadata.json
 ```
 
-## 8. Запуск через Docker
-### Dockerfile (многоступенчатая сборка)
-```docker
+---
+
+## 8. Контейнеризация и запуск
+
+### Dockerfile
+
+```dockerfile
 # ---- Builder stage ----
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /app
@@ -232,16 +164,14 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
-COPY classifier-rules.yaml classifier-rules.yaml
 RUN mkdir -p /app/model
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
-### Фрагмент docker-compose.services.yml
-```yaml
-version: '3.8'
+### Фрагмент `docker-compose.services.yml`
 
+```yaml
 services:
   classifier:
     build:
@@ -252,34 +182,31 @@ services:
       - "8081:8081"
     environment:
       SERVER_PORT: 8081
-      CLASSIFIER_STRATEGY: rule
+      CLASSIFIER_STRATEGY: ml
       CLASSIFIER_MODEL_DIR: /app/model
     volumes:
       - ./tools/ml-training/artifacts:/app/model:ro
     networks:
       - finsense-net
     restart: unless-stopped
-    # Нет зависимостей от БД или Kafka — можно запускать параллельно с Core
 ```
 
 ### Порядок запуска
-- Запустить инфраструктуру (Postgres, Kafka) — если ещё не запущена.
-- Запустить Classifier Service (он не зависит от других сервисов, кроме сети):
 
 ```bash
 docker-compose -f docker-compose.services.yml up -d classifier
 ```
 
-### Зависимости
-Сеть finsense-net — должна быть создана (обычно в инфраструктурном compose-файле).
+---
 
-Никаких других зависимостей нет — сервис полностью stateless.
+## 9. Связь с Python training pipeline
 
-## 9. Стратегия эволюции к ML
+ML-модель готовится в `tools/ml-training`:
 
-- В сервисе уже используется интерфейс `ClassificationStrategy`
-- Реализации:
-    - `RuleBasedClassificationStrategy`
-    - `MlOnnxClassificationStrategy`
-- Выбор реализации задаётся через `app.classification.strategy`
-- ONNX‑артефакты (`transaction-classifier.onnx`, `labels.json`, `metadata.json`) монтируются в контейнер через volume
+1. Генерируется или экспортируется датасет транзакций.
+2. Выполняется обучение модели классификации.
+3. Модель экспортируется в ONNX.
+4. Вместе с моделью сохраняются `labels.json` и `metadata.json`.
+5. Артефакты монтируются в контейнер `classifier-service` и используются во время inference.
+
+Такой подход разделяет обучение и runtime-инференс: Python используется для подготовки модели и экспериментов, а Java/Spring Boot сервис отвечает за стабильную интеграцию модели в микросервисную архитектуру.

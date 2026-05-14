@@ -23,8 +23,8 @@
 - Distributed event-driven microservice architecture.
 - Stateless services; no shared memory.
 - Kafka is the persistent event log and async backbone.
-- Shared PostgreSQL instance for MVP, separated by schemas (`core`, `recommendations`).
-- Fixed stack: Kotlin/Java, Spring Boot, Kafka, PostgreSQL, Docker, REST/JSON, external LLM APIs, JVM-compatible ML libs.
+- Shared PostgreSQL instance for the prototype, separated by schemas (`core`, `recommendations`).
+- Fixed stack: Kotlin/Java, Spring Boot, Kafka, PostgreSQL, Docker, REST/JSON, external LLM APIs, ONNX Runtime.
 - Local development with synthetic data; deployable to VPS.
 
 ## Architecture Layers and Components
@@ -167,8 +167,8 @@
 - Latency and error-rate metrics.
 - LLM usage and ML->LLM fallback ratio.
 
-## Architectural Tradeoffs (Current MVP)
-- Shared database (single Postgres, multiple schemas) chosen over database-per-service for speed of MVP delivery.
+## Architectural Tradeoffs (Current Prototype)
+- Shared database (single Postgres, multiple schemas) chosen over database-per-service for speed of prototype delivery.
 - REST for fast ML classification; Kafka for slower LLM flows.
 - Structured relational tables for core transactional data; JSONB for AI outputs/metadata.
 - Design must allow future evolution: database-per-service, DLQ/advanced retries, distributed tracing, Redis cache, local LLM inference.

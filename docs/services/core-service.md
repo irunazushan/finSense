@@ -21,7 +21,7 @@ Core Service является владельцем доменной модели
 
 Данные Core Context хранятся в PostgreSQL (schema `core`) и считаются источником истины для этих сущностей.
 
-**Recommendation Context (MVP):**
+**Recommendation Context (в рамках прототипа):**
 - рекомендации и статус их генерации хранятся в PostgreSQL (schema `recommendations`);
 - запись создаётся Core Service (status=`PENDING`), обновляется Financial Coach Agent (status=`COMPLETED/FAILED`);
 - доступ к рекомендациям пользователю предоставляется через REST API Core Service.
@@ -193,7 +193,7 @@ Core Service инициирует генерацию финансовой рек
 ### Краткое описание внешних сервисов
 
 - **Generator Service** – генерирует синтетические транзакции, публикует в `raw-transactions`. Используется для тестирования.
-- **Classifier Service** – ML‑классификатор на Java + ONNX Runtime с rollback на rule-based стратегию через конфигурацию. Возвращает категорию и уверенность.
+- **Classifier Service** – ML‑классификатор на Java + ONNX Runtime. Возвращает категорию и уверенность.
 - **Transaction Classifier Agent** – агент на LLM для сложных случаев. Потребляет `llm-classifier-requests`, публикует ответы в `llm-classifier-responses`.
 - **Financial Coach Agent** – агент на LLM для советов. Потребляет `coach-requests`, сохраняет советы в БД, опционально публикует `coach-responses` для Notify Service.
 - **Notify Service** (опционально) – слушает `coach-responses`, отправляет уведомления в Telegram.

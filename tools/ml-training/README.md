@@ -60,8 +60,8 @@ Generated datasets and model artifacts are ignored by git.
 ## Dataset Source
 
 Datasets are generated from `data_sources/transaction_catalog.yaml`, then aligned
-to the runtime contract in `classifier-service/classifier-rules.yaml`. The
-catalog now models user archetypes, city affinity, channel-specific templates,
+to the classifier runtime categories exported with the ONNX artifacts. The
+catalog models user archetypes, city affinity, channel-specific templates,
 merchant holdouts, payment-provider wrappers, noisy terminal text, mixed
 keyboard and transliterated merchant variants, refunds/reversals/installments,
 recurring/autopay flows, hard negatives, and explicit `UNDEFINED` low-signal
