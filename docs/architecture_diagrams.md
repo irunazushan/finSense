@@ -4,7 +4,7 @@
 ```mermaid
 graph TB
     subgraph "Внешние системы"
-        LLM[LLM Provider<br>OpenAI/DeepSeek]
+        LLM[LLM Provider<br>DeepSeek]
         TG[Telegram Bot<br>Уведомления]
     end
 
@@ -273,7 +273,7 @@ flowchart TB
 subgraph EXT["External Systems"]
     User["User (Browser / Client)"]
     Generator["Transaction Generator"]
-    LLM["LLM Provider<br/>OpenAI / DeepSeek"]
+    LLM["LLM Provider<br/>DeepSeek"]
     TG["Telegram Bot API"]
 end
 
