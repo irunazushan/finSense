@@ -20,7 +20,7 @@
 
 **FinSense** — это гибридная AI-архитектура для:
 
-* Классификации банковских транзакций (ML + LLM fallback)
+* Классификации банковских транзакций (ML + LLM fallback + RAG enrichment для сложных случаев)
 * Генерации персонализированных финансовых рекомендаций
 * Асинхронной обработки событий
 
@@ -46,7 +46,7 @@ FinSense построен на принципах **Event-Driven Microservices A
 | --------------------------------------- | ------------------------------------------------------------------------- |
 | **Core Service**                        | Оркестратор, владелец доменной модели (User, Transaction, Recommendation) |
 | **Classifier Service (ML/ONNX)**        | Быстрая синхронная ML-классификация через ONNX Runtime                    |
-| **Transaction Classifier Agent (LLM)**  | Fallback-классификация при низком confidence                              |
+| **Transaction Classifier Agent (LLM + RAG)**  | Fallback-классификация при низком confidence и retrieval похожих сложных кейсов |
 | **Financial Coach Agent (LLM + tools)** | Анализ расходов и генерация рекомендаций                                  |
 | **Notify Service**                      | Доставка уведомлений (Telegram)                                           |
 | **Kafka**                               | Центральная шина событий                                                  |
@@ -62,7 +62,7 @@ FinSense построен на принципах **Event-Driven Microservices A
 2. Core сохраняет транзакцию и вызывает ML-классификатор
 3. Если `confidence ≥ threshold` → транзакция классифицирована
 4. Если `confidence < threshold` → публикуется `llm-classifier-requests`
-5. LLM-агент публикует `llm-classifier-responses`
+5. При необходимости агент извлекает похожие сложные кейсы из `pgvector`, обогащает prompt и затем публикует `llm-classifier-responses`
 6. Core обновляет статус транзакции
 
 ---
@@ -99,8 +99,8 @@ FinSense построен на принципах **Event-Driven Microservices A
 | Topic                      | Назначение                      |
 | -------------------------- | ------------------------------- |
 | `raw-transactions`         | Поток сырых транзакций          |
-| `llm-classifier-requests`  | Запросы fallback-классификации  |
-| `llm-classifier-responses` | Ответы LLM-классификации        |
+| `llm-classifier-requests`  | Запросы fallback-классификации с возможным RAG-обогащением |
+| `llm-classifier-responses` | Ответы агентной LLM-классификации        |
 | `coach-requests`           | Запросы генерации рекомендаций  |
 | `coach-responses`          | Событие готовности рекомендации |
 
@@ -125,8 +125,9 @@ FinSense построен на принципах **Event-Driven Microservices A
 * Spring Boot 3.5
 * Spring Kafka
 * PostgreSQL
+* pgvector
 * Liquibase
-* Внешние LLM API (DeepSeek / OpenAI)
+* Внешние LLM API (DeepSeek)
 * Docker & Docker Compose
 
 ---

@@ -18,7 +18,7 @@ Classifier Service отвечает за быструю синхронную ML-
 Classifier Service является вычислительным узлом в цепочке классификации:
 - Core Service вызывает его синхронно для каждой входящей транзакции.
 - Если `confidence` выше порога, Core Service сохраняет результат классификации.
-- Если `confidence` ниже порога, Core Service отправляет транзакцию в `llm-classifier-requests` для обработки Transaction Classifier Agent.
+- Если `confidence` ниже порога, Core Service отправляет транзакцию в `llm-classifier-requests` для обработки Transaction Classifier Agent, который при сложных случаях дополнительно использует retrieval похожих кейсов через `pgvector`.
 
 ---
 

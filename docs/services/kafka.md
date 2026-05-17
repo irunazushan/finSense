@@ -38,7 +38,7 @@
 ### 2. `llm-classifier-requests`
 
 **Назначение:**  
-Запросы на LLM-классификацию для транзакций, с которыми ML-классификатор не справился. Core Service добавляет в сообщение полные данные транзакции и историю последних транзакций пользователя.
+Запросы на LLM-классификацию для транзакций, с которыми ML-классификатор не справился. Core Service добавляет в сообщение полные данные транзакции и историю последних транзакций пользователя. Transaction Classifier Agent при необходимости дополняет этот контекст retrieval-поиском похожих сложных кейсов в `pgvector`.
 
 **Продюсер:** Core Service  
 **Консьюмеры:** Transaction Classifier Agent
@@ -89,7 +89,7 @@
 ### 3. `llm-classifier-responses`
 
 **Назначение:**  
-Результаты LLM-классификации от Transaction Classifier Agent.
+Результаты LLM-классификации от Transaction Classifier Agent после обычного LLM fallback или после retrieval-обогащения через `pgvector`.
 
 **Продюсер:** Transaction Classifier Agent  
 **Консьюмеры:** Core Service  

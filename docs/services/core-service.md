@@ -31,7 +31,7 @@ Core Service выполняет роль **оркестратора**:
 - Принимает пользовательские запросы (синхронно через REST).
 - Потребляет сырые транзакции из Kafka (от Generator).
 - Вызывает **Classifier Service** синхронно для быстрой ML‑классификации.
-- При низкой уверенности ML - core публикует событие в Kafka  для **Transaction Classifier Agent**.
+- При низкой уверенности ML - core публикует событие в Kafka  для **Transaction Classifier Agent**, который при сложных случаях обогащает классификацию retrieval-запросом к `pgvector`.
 - Потребляет результаты LLM‑классификации и обновляет статус транзакции.
 - По расписанию или по запросу публикует события для **Financial Coach Agent**.
 - Сохраняет финальные результаты в БД и отдаёт их клиентам по REST.
@@ -174,7 +174,7 @@ Core Service инициирует генерацию финансовой рек
 
 | Топик                     | Тип сообщения                                    | Назначение                              |
 |---------------------------|--------------------------------------------------|-----------------------------------------|
-| `llm-classifier-requests` | `{ requestId, transactionId, occuredAt, transaction, confidence, predictedCategory, history }`                      | Запрос на LLM‑классификацию  с контекстом             |
+| `llm-classifier-requests` | `{ requestId, transactionId, occuredAt, transaction, confidence, predictedCategory, history }`                      | Запрос на LLM‑классификацию с контекстом и возможным retrieval-обогащением             |
 | `coach-requests`          | `{ requestId, userId, trigger, requestedAt, parameters? }` | Запрос на генерацию совета              |
 
 ### Потребляемые события (Kafka)
@@ -194,7 +194,7 @@ Core Service инициирует генерацию финансовой рек
 
 - **Generator Service** – генерирует синтетические транзакции, публикует в `raw-transactions`. Используется для тестирования.
 - **Classifier Service** – ML‑классификатор на Java + ONNX Runtime. Возвращает категорию и уверенность.
-- **Transaction Classifier Agent** – агент на LLM для сложных случаев. Потребляет `llm-classifier-requests`, публикует ответы в `llm-classifier-responses`.
+- **Transaction Classifier Agent** – агент на LLM для сложных случаев. Потребляет `llm-classifier-requests`, при неоднозначных ситуациях извлекает похожие кейсы из `pgvector`, затем публикует ответы в `llm-classifier-responses`.
 - **Financial Coach Agent** – агент на LLM для советов. Потребляет `coach-requests`, сохраняет советы в БД, опционально публикует `coach-responses` для Notify Service.
 - **Notify Service** (опционально) – слушает `coach-responses`, отправляет уведомления в Telegram.
 
@@ -214,7 +214,7 @@ Core Service инициирует генерацию финансовой рек
 | `RecommendationStatus`  | Enum       | `recommendations`                      | Статусы генерации рекомендации: `PENDING`, `COMPLETED`, `FAILED`.                                                                                                                                                                                    |
 | `RawTransactionEvent`   | DTO        | Kafka                                  | Сообщение из `raw-transactions`, которое Core потребляет и превращает в `Transaction`.                                                                                                                                                               |
 | `CoachRequest`          | DTO        | Kafka                                  | Сообщение в `coach-requests`, которое Core публикует для запуска генерации рекомендации (`requestId`, `userId`, параметры).                                                                                                                          |
-| `LlmClassifierRequest`  | DTO        | Kafka                                  | Сообщение в `llm-classifier-requests` при fallback на LLM-классификацию (`requestId`, `transactionId`, контекст/история).                                                                                                                            |
+| `LlmClassifierRequest`  | DTO        | Kafka                                  | Сообщение в `llm-classifier-requests` при fallback на LLM-классификацию (`requestId`, `transactionId`, контекст/история), которое агент может дополнительно обогащать retrieval-контекстом из `pgvector`.                                                                                                                            |
 | `LlmClassifierResponse` | DTO        | Kafka                                  | Ответ из `llm-classifier-responses`, по которому Core завершает классификацию транзакции (`requestId`, `transactionId`, `category`, `confidence`, метаданные).                                                                                       |
 
 ---

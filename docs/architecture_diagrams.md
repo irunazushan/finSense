@@ -46,13 +46,14 @@ graph TD
         end
         
         subgraph "AI Layer"
-            Reasoning[Transaction Classifier Agent]
+            Reasoning[Transaction Classifier Agent<br/>LLM + RAG]
             Coach[Financial Coach Agent]
         end
         
         subgraph "Infrastructure"
             Kafka[(Kafka)]
             DB[(Postgres<br>-core schema<br>-reccomendations schema)]
+            VectorDB[(pgvector<br>- difficult cases)]
         end
     end
 
@@ -67,6 +68,7 @@ graph TD
     Kafka -->|raw-transactions | Core
     
     Reasoning -->| llm‑classifier‑responses| Kafka
+    Reasoning -->|retrieve similar cases| VectorDB
     Reasoning -->|LLM calls| LLM
     Kafka -->|llm‑classifier‑requests| Reasoning
     
@@ -141,6 +143,7 @@ sequenceDiagram
     participant Classifier as Classifier Service
     participant DB
     participant Reasoning as Transaction Classifier Agent
+    participant VectorDB as pgvector
     participant LLM as LLM Provider
 
     Generator->>Kafka: raw-transaction
@@ -161,8 +164,11 @@ sequenceDiagram
         deactivate Kafka
         
         activate Reasoning
-       
-        Reasoning->>LLM: call LLM with prompt
+        Reasoning->>VectorDB: retrieve similar difficult cases
+        activate VectorDB
+        VectorDB-->>Reasoning: top-k similar cases
+        deactivate VectorDB
+        Reasoning->>LLM: call LLM with enriched prompt
         activate LLM
         LLM-->>Reasoning: LLM response (category, confidence)
         deactivate LLM
@@ -289,7 +295,8 @@ subgraph HOST["Docker Host"]
     subgraph SVC["FinSense Services (docker-compose.services.yml)"]
         Core["Core Service (:8080)"]
         Classifier["Classifier Service (:8081)"]
-        Reasoning["Transaction Classifier Agent"]
+        Reasoning["Transaction Classifier Agent<br/>LLM + RAG"]
+        VectorDB[(pgvector :5432<br/>case memory)]
         Coach["Financial Coach Agent"]
         Notify["Notify Service"]
     end
@@ -302,6 +309,7 @@ Core -->|"HTTP :8081 /api/classify"| Classifier
 
 Core <-->|"Kafka :9092<br/>produce/consume"| Kafka
 Reasoning <-->|"Kafka :9092<br/>consume/produce"| Kafka
+Reasoning -->|"JDBC :5432<br/>retrieve difficult cases"| VectorDB
 Coach <-->|"Kafka :9092<br/>consume/produce"| Kafka
 Notify -->|"Kafka :9092<br/>consume coach-responses"| Kafka
 
